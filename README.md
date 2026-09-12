@@ -1,97 +1,147 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# FluentEdge — Planning Document (React Native)
 
-# Getting Started
+## 1. Product Overview
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+**Concept:** An offline, on-device AI-powered English writing/grammar tutor for people who already know English but want to improve writing, grammar, and style. The app generates open-ended writing prompts, evaluates user responses, and delivers targeted mini-lessons on mistakes.
 
-## Step 1: Start Metro
+**Target audience:** Intermediate-to-advanced English speakers (not beginners learning from scratch).
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+**Core differentiator:** Fully offline — no external API calls, using a local LLM running on-device.
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+---
 
-```sh
-# Using npm
-npm start
+## 2. Tech Stack
+Component	Choice
+Framework	React Native
+Local LLM runtime	llama.cpp via llama.rn
+Model (initial)	Qwen 2.5 3B Instruct or Llama 3.2 3B Instruct (4-bit quantized, .gguf)
+Model delivery	Downloaded post-install (not bundled in app binary)
+File/download management	react-native-fs or expo-file-system + react-native-background-downloader (resumable downloads)
+Local storage	SQLite (user profile, prompts, error history, progress)
+Notifications	notifee (action buttons + quick-reply support)
+Dev tooling	Android Studio (Gemini as coding assistant only, not part of the shipped app)
+3. Core Features
+3.1 Onboarding
+Diagnostic test: short writing sample or sentence corrections, scored by the LLM to estimate real proficiency (rough CEFR level) instead of relying on self-reported level.
+Learning goal: business, academic, exam prep (IELTS/TOEFL), casual/conversational, creative writing.
+Native language (optional): helps anticipate L1-interference mistakes.
+Focus areas: grammar, vocabulary, tone/style, fluency.
+Session preferences: practice frequency, difficulty pacing.
+Output: a local user profile (JSON/SQLite) injected into future LLM prompts.
 
-# OR using Yarn
-yarn start
+3.2 Exercise Loop
+App generates or retrieves a writing prompt appropriate to user profile.
+User writes a paragraph/response.
+LLM evaluates the response and returns structured JSON:
+Corrections (original phrase, corrected phrase, error type, explanation, quick tip)
+Improved rewrite of the paragraph
+Strengths/positive feedback
+UI renders this as interactive cards + a "mini-lesson" per mistake.
+3.3 Adaptive Personalization
+Log error types/frequency per session.
+Maintain a rolling "weak spots" summary (short tags/counters, not raw text) fed back into future prompts.
+Adjust difficulty/level estimate over time based on trends, not just the initial diagnostic.
+3.4 Local Notifications (Daily Practice Nudge)
+Pre-cached (not live-generated) short question + 3 answer alternatives, to avoid running the LLM in the background.
+Delivered via notifee action buttons (3 max, cross-platform safe limit).
+Tapping an option triggers a background handler that records the answer.
+Full explanation/lesson content opens when the user returns to the app (rich content can't render inside the notification itself).
+3.5 Model Management (Settings)
+Delete downloaded AI model: frees ~1.5–2.5GB storage; sets isModelDownloaded: false, prompts re-download when needed. User profile/progress data stays intact (separate lightweight DB).
+Optional future: model switching (smaller/faster vs. larger/more accurate).
+3.6 Uninstall Behavior
+Uninstalling the app removes everything (model file, database, cache) — standard OS sandboxing on iOS/Android. No separate cleanup needed.
+4. Technical Architecture Notes
+Model Prompting
+Keep injected user profile concise (few lines, not paragraphs) — 3B-class models have limited context and lose instruction-following quality with long system prompts.
+
+Example system prompt pattern:
+```
+You are an English writing tutor.
+User profile:
+
+Level: Intermediate (B1)
+Native language: Portuguese
+Goal: Improve business email writing
+Focus: Grammar and tone
+Known recurring mistakes: article omission, verb tense consistency
+Generate a writing prompt appropriate for this level and goal.
+When correcting, prioritize the focus areas above.
+Respond ONLY in the specified JSON format.
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+Structured Output Enforcement
+Use a low temperature (0.2–0.4) and a strict JSON schema to keep output parseable:
+```json
+{
+"has_errors": true,
+"corrections": [
+{
+"original_phrase": "he go to school",
+"corrected_phrase": "he goes to school",
+"error_type": "Subject-Verb Agreement",
+"explanation": "...",
+"quick_tip": "..."
+}
+],
+"improved_paragraph": "...",
+"strengths": "..."
+}
 ```
 
-### iOS
+Hybrid Rule-Based Layer (Optional)
+Use a lightweight rule-based spelling/punctuation checker before the LLM call, so the LLM focuses on nuance and style rather than obvious typos.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+5. Notification Technical Constraints
+iOS: max 4 action buttons (simple taps), text-input reply supported but limited UI.
+Android: 3 action buttons is the safe cross-device limit; also supports text-input reply.
+No rich/custom UI inside a notification — tapping opens the app or fires a background handler only.
+iOS is stricter about background execution triggered from notification taps — test thoroughly across OS versions.
+6. Development Phases
+Phase 0 — Setup
+Lock in framework, model, libraries (table above).
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+Phase 1 — App Skeleton (no AI)
 
-```sh
-bundle install
-```
+Onboarding UI
+Local profile storage
+Static/hardcoded exercise + feedback screens
+Navigation: Home → Exercise → Feedback → Progress/History
+Phase 2 — Model Integration
 
-Then, and every time you update your native dependencies, run:
+Model download manager (resumable, Wi-Fi check, checksum verification)
+llama.rn integration, basic prompt/response test
+System prompt template with profile injection
+Structured JSON parsing
+Replace static screens with live LLM-driven exercise loop
+Phase 3 — Personalization & Adaptive Difficulty
 
-```sh
-bundle exec pod install
-```
+Error logging per session
+Rolling weak-spots summary
+Difficulty/level adjustment logic
+Refine diagnostic scoring
+Phase 4 — Notifications
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+Schedule daily/periodic notifications
+Pre-cache lightweight question + 3 alternatives
+Wire action buttons → background handler → store answer
+Show lesson on next app open
+Phase 5 — Polish
 
-```sh
-# Using npm
-npm run ios
+Handle low-storage/low-RAM devices gracefully
+Settings: model deletion, re-take diagnostic, focus area changes
+Performance testing (inference speed, battery, background limits)
+App size/cold-start optimization
+Phase 6 — Expansion (Later)
 
-# OR using Yarn
-yarn ios
-```
+Add target-language selector (architecture is language-agnostic)
+Per-language prompt templates and grammar taxonomies
+Consider model upgrades for lower-resource languages
+7. App Name
+FluentEdge
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+8. Open Decisions to Finalize Before Building
+ Confirm final model choice (Qwen 2.5 3B vs. Llama 3.2 3B) — test both for grammar-explanation quality
+ Decide if diagnostic test uses fixed sentences or an LLM-generated short writing sample
+ Decide notification frequency defaults (daily? user-configurable?)
+ Decide minimum supported device specs (RAM threshold for running a 3B model)
