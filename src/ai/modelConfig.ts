@@ -19,9 +19,9 @@ export const FREE_MARGIN_BYTES = 1 * GB;
 
 export const MODEL_VARIANTS: Record<ModelVariant, ModelVariantConfig> = {
   full: {
-    url: 'https://huggingface.co/bartowski/Qwen_Qwen2.5-3B-Instruct-GGUF/resolve/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf',
-    sha256: 'replace_with_x_linked_etag_of_full_file',
-    bytes: 2_060_000_000,
+    url: 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf',
+    sha256: '626b4a6678b86442240e33df819e00132d3ba7dddfe1cdc4fbb18e0a9615c62d',
+    bytes: 2_104_932_768,
     filename: 'qwen2.5-3b-instruct-q4_k_m.gguf',
     label: 'Qwen 2.5 3B Instruct (Q4_K_M, about 2 GB)',
     shortLabel: 'Standard (about 2 GB)',
@@ -29,12 +29,12 @@ export const MODEL_VARIANTS: Record<ModelVariant, ModelVariantConfig> = {
     ramMinimumBytes: 3 * GB,
   },
   small: {
-    url: 'https://huggingface.co/bartowski/Qwen_Qwen2.5-3B-Instruct-GGUF/resolve/main/Qwen2.5-3B-Instruct-Q3_K_S.gguf',
-    sha256: 'replace_with_x_linked_etag_of_small_file',
-    bytes: 1_580_000_000,
-    filename: 'qwen2.5-3b-instruct-q3_k_s.gguf',
-    label: 'Qwen 2.5 3B Instruct (Q3_K_S, about 1.5 GB)',
-    shortLabel: 'Smaller (about 1.5 GB)',
+    url: 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q3_k_m.gguf',
+    sha256: 'ba8627a48c2bddefac2f995caf7887551304f26a72137fb94b74449121d0df4e',
+    bytes: 1_724_178_848,
+    filename: 'qwen2.5-3b-instruct-q3_k_m.gguf',
+    label: 'Qwen 2.5 3B Instruct (Q3_K_M, about 1.7 GB)',
+    shortLabel: 'Smaller (about 1.7 GB)',
     ramRecommendedBytes: 3 * GB,
     ramMinimumBytes: 2 * GB,
   },
