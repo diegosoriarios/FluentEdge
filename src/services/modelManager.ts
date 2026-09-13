@@ -146,14 +146,36 @@ export function watchTask(
   callbacks: DownloadCallbacks,
 ): void {
   let lastLoggedPercent = -1;
+  const watchdogStart = Date.now();
+  const watchdogStages = [5_000, 30_000, 60_000];
+  let watchdogStage = 0;
+  const watchdog = setInterval(() => {
+    if (watchdogStage >= watchdogStages.length) {
+      clearInterval(watchdog);
+      return;
+    }
+    const elapsed = Date.now() - watchdogStart;
+    if (elapsed >= watchdogStages[watchdogStage]) {
+      logDebug(
+        'download',
+        `no begin event after ${Math.round(elapsed / 1000)}s — ` +
+          `native accepted start() but nothing came back; download may be ` +
+          `deferred by JobScheduler or stuck. Check logcat.`,
+      );
+      watchdogStage += 1;
+    }
+  }, 1_000);
+  const stopWatchdog = () => clearInterval(watchdog);
   task
     .begin(({ expectedBytes }) => {
+      stopWatchdog();
       logDebug(
         'download',
         `begin id=${task.id} expectedBytes=${expectedBytes}`,
       );
     })
     .progress(({ bytesDownloaded, bytesTotal }) => {
+      stopWatchdog();
       const percent = clamp01(
         bytesTotal > 0 ? bytesDownloaded / bytesTotal : 0,
       );
@@ -168,6 +190,7 @@ export function watchTask(
       callbacks.onProgress(percent);
     })
     .done(({ location }) => {
+      stopWatchdog();
       logDebug('download', `done id=${task.id} location=${location}`);
       callbacks.onVerifying();
       (async () => {
@@ -180,6 +203,7 @@ export function watchTask(
       })();
     })
     .error(({ error, errorCode }) => {
+      stopWatchdog();
       logDebug('download', `ERROR id=${task.id} code=${errorCode} ${error}`);
       callbacks.onError(new DownloadError(String(error), errorCode));
     });

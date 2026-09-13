@@ -40,6 +40,7 @@ import {
 } from '../ai/tutor';
 import type { EvaluateCallbacks } from '../ai/tutor';
 import type { Evaluation, Profile } from '../navigation/types';
+import { ensureNotificationPermission } from '../notifications/dailyQuestion';
 import { logDebug } from '../services/debugLog';
 
 export type ModelState =
@@ -190,7 +191,13 @@ export function ModelProvider({ children }: { children: ReactNode }) {
         return;
       }
       checkFreeSpace(variant)
-        .then(() => {
+        .then(async () => {
+          try {
+            const granted = await ensureNotificationPermission();
+            logDebug('model', `notification permission granted=${granted}`);
+          } catch (error) {
+            logDebug('model', 'notification permission request failed', error);
+          }
           setActiveVariant(variant);
           taskRef.current = startDownload(variant, network, makeCallbacks());
           setProgress(0);
