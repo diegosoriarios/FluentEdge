@@ -68,30 +68,31 @@ jest.mock('react-native-fs', () => ({
   },
 }));
 
-jest.mock('react-native-background-downloader', () => {
+jest.mock('@kesha-antonov/react-native-background-downloader', () => {
   const makeTask = () => ({
     id: 'fluentedge-model',
     state: 'PENDING',
-    percent: 0,
-    bytesWritten: 0,
-    totalBytes: 0,
+    metadata: {},
+    errorCode: 0,
+    bytesDownloaded: 0,
+    bytesTotal: 0,
     begin: jest.fn(t => t),
     progress: jest.fn(t => t),
     done: jest.fn(t => t),
     error: jest.fn(t => t),
-    pause: jest.fn(),
-    resume: jest.fn(),
-    stop: jest.fn(),
+    start: jest.fn(),
+    pause: jest.fn(() => Promise.resolve()),
+    resume: jest.fn(() => Promise.resolve()),
+    stop: jest.fn(() => Promise.resolve()),
   });
-  const mod = {
-    download: jest.fn(() => makeTask()),
-    checkForExistingDownloads: jest.fn(() => Promise.resolve([])),
-    setHeaders: jest.fn(),
+  return {
+    __esModule: true,
+    createDownloadTask: jest.fn(() => makeTask()),
+    getExistingDownloadTasks: jest.fn(() => Promise.resolve([])),
+    setConfig: jest.fn(),
+    completeHandler: jest.fn(),
     directories: { documents: '/tmp/documents' },
-    Network: { WIFI_ONLY: 'wifi_only', ALL: 'all' },
-    Priority: { HIGH: 'high', MEDIUM: 'normal', LOW: 'low' },
   };
-  return { __esModule: true, ...mod, default: mod };
 });
 
 jest.mock('llama.rn', () => require('llama.rn/jest/mock'));

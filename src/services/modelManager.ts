@@ -1,6 +1,9 @@
 import RNFS from 'react-native-fs';
-import BackgroundDownloader, { Network } from 'react-native-background-downloader';
-import type { DownloadTask } from 'react-native-background-downloader';
+import {
+  createDownloadTask,
+  getExistingDownloadTasks,
+} from '@kesha-antonov/react-native-background-downloader';
+import type { DownloadTask } from '@kesha-antonov/react-native-background-downloader';
 import {
   FREE_MARGIN_BYTES,
   MODEL_VARIANTS,
@@ -116,7 +119,7 @@ export async function getModelInfo(variant: ModelVariant): Promise<ModelInfo> {
 export async function findExistingTask(
   variant: ModelVariant,
 ): Promise<DownloadTask | null> {
-  const tasks = await BackgroundDownloader.checkForExistingDownloads();
+  const tasks = await getExistingDownloadTasks();
   return tasks.find(task => task.id === downloadIdFor(variant)) ?? null;
 }
 
@@ -126,7 +129,11 @@ export function watchTask(
   callbacks: DownloadCallbacks,
 ): void {
   task
-    .progress(percent => callbacks.onProgress(clamp01(percent)))
+    .progress(({ bytesDownloaded, bytesTotal }) =>
+      callbacks.onProgress(
+        clamp01(bytesTotal > 0 ? bytesDownloaded / bytesTotal : 0),
+      ),
+    )
     .done(async () => {
       callbacks.onVerifying();
       try {
@@ -136,8 +143,8 @@ export function watchTask(
         callbacks.onError(toManagerError(error));
       }
     })
-    .error((error, code) => {
-      callbacks.onError(new DownloadError(String(error), code));
+    .error(({ error, errorCode }) => {
+      callbacks.onError(new DownloadError(String(error), errorCode));
     });
 }
 
@@ -147,13 +154,15 @@ export function startDownload(
   callbacks: DownloadCallbacks,
 ): DownloadTask {
   const { partPath } = modelPaths(variant);
-  const task = BackgroundDownloader.download({
+  const task = createDownloadTask({
     id: downloadIdFor(variant),
     url: MODEL_VARIANTS[variant].url,
     destination: partPath,
-    network: network === 'wifi' ? Network.WIFI_ONLY : Network.ALL,
+    isAllowedOverMetered: network === 'all',
+    isAllowedOverRoaming: network === 'all',
   });
   watchTask(task, variant, callbacks);
+  task.start();
   return task;
 }
 

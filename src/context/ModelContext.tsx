@@ -145,7 +145,11 @@ export function ModelProvider({ children }: { children: ReactNode }) {
           if (existing && !cancelled) {
             taskRef.current = existing;
             setActiveVariant(variant);
-            setProgress(existing.percent);
+            setProgress(
+              existing.bytesTotal > 0
+                ? existing.bytesDownloaded / existing.bytesTotal
+                : 0,
+            );
             setModelState(
               existing.state === 'PAUSED' ? 'paused' : 'downloading',
             );
