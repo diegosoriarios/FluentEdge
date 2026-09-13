@@ -12,6 +12,7 @@ import {
   modelPaths,
 } from '../ai/modelConfig';
 import type { ModelVariant } from '../ai/modelConfig';
+import { logDebug } from './debugLog';
 
 export class ModelManagerError extends Error {}
 
@@ -54,6 +55,10 @@ export function assertModelConfigured(variant: ModelVariant): void {
 export async function checkFreeSpace(variant: ModelVariant): Promise<void> {
   const info = await RNFS.getFSInfo();
   const required = MODEL_VARIANTS[variant].bytes + FREE_MARGIN_BYTES;
+  logDebug(
+    'modelManager',
+    `checkFreeSpace variant=${variant} free=${info.freeSpace} required=${required}`,
+  );
   if (info.freeSpace < required) {
     throw new LowStorageError(
       `Not enough free storage: about ${Math.round(required / 1_000_000_000)} GB are required.`,
@@ -120,7 +125,19 @@ export async function findExistingTask(
   variant: ModelVariant,
 ): Promise<DownloadTask | null> {
   const tasks = await getExistingDownloadTasks();
-  return tasks.find(task => task.id === downloadIdFor(variant)) ?? null;
+  logDebug(
+    'modelManager',
+    `existing download tasks: ${tasks.length}`,
+    tasks.map(task => `${task.id}:${task.state}`),
+  );
+  const match = tasks.find(task => task.id === downloadIdFor(variant)) ?? null;
+  if (match) {
+    logDebug(
+      'modelManager',
+      `reattaching task id=${match.id} state=${match.state} bytes=${match.bytesDownloaded}/${match.bytesTotal}`,
+    );
+  }
+  return match;
 }
 
 export function watchTask(
@@ -128,22 +145,42 @@ export function watchTask(
   variant: ModelVariant,
   callbacks: DownloadCallbacks,
 ): void {
+  let lastLoggedPercent = -1;
   task
-    .progress(({ bytesDownloaded, bytesTotal }) =>
-      callbacks.onProgress(
-        clamp01(bytesTotal > 0 ? bytesDownloaded / bytesTotal : 0),
-      ),
-    )
-    .done(async () => {
-      callbacks.onVerifying();
-      try {
-        await verifyAndFinalize(variant);
-        callbacks.onReady();
-      } catch (error) {
-        callbacks.onError(toManagerError(error));
+    .begin(({ expectedBytes }) => {
+      logDebug(
+        'download',
+        `begin id=${task.id} expectedBytes=${expectedBytes}`,
+      );
+    })
+    .progress(({ bytesDownloaded, bytesTotal }) => {
+      const percent = clamp01(
+        bytesTotal > 0 ? bytesDownloaded / bytesTotal : 0,
+      );
+      const wholePercent = Math.floor(percent * 100);
+      if (wholePercent !== lastLoggedPercent) {
+        lastLoggedPercent = wholePercent;
+        logDebug(
+          'download',
+          `progress ${wholePercent}% (${bytesDownloaded}/${bytesTotal})`,
+        );
       }
+      callbacks.onProgress(percent);
+    })
+    .done(({ location }) => {
+      logDebug('download', `done id=${task.id} location=${location}`);
+      callbacks.onVerifying();
+      (async () => {
+        try {
+          await verifyAndFinalize(variant);
+          callbacks.onReady();
+        } catch (error) {
+          callbacks.onError(toManagerError(error));
+        }
+      })();
     })
     .error(({ error, errorCode }) => {
+      logDebug('download', `ERROR id=${task.id} code=${errorCode} ${error}`);
       callbacks.onError(new DownloadError(String(error), errorCode));
     });
 }
@@ -154,22 +191,45 @@ export function startDownload(
   callbacks: DownloadCallbacks,
 ): DownloadTask {
   const { partPath } = modelPaths(variant);
+  const config = MODEL_VARIANTS[variant];
+  logDebug('modelManager', 'startDownload', {
+    variant,
+    url: config.url,
+    destination: partPath,
+    network,
+    isAllowedOverMetered: network === 'all',
+    isAllowedOverRoaming: network === 'all',
+  });
   const task = createDownloadTask({
     id: downloadIdFor(variant),
-    url: MODEL_VARIANTS[variant].url,
+    url: config.url,
     destination: partPath,
     isAllowedOverMetered: network === 'all',
     isAllowedOverRoaming: network === 'all',
   });
   watchTask(task, variant, callbacks);
   task.start();
+  logDebug('modelManager', `task.start() called id=${task.id}`);
   return task;
 }
 
 async function verifyAndFinalize(variant: ModelVariant): Promise<void> {
   const { finalPath, partPath, markerPath } = modelPaths(variant);
+  logDebug(
+    'modelManager',
+    `verifying sha256 of ${partPath} — hashing ~2 GB can take a while`,
+  );
+  const hashStart = Date.now();
   const actual = await RNFS.hash(partPath, 'sha256');
+  logDebug(
+    'modelManager',
+    `sha256 computed in ${Date.now() - hashStart}ms: ${actual}`,
+  );
   if (actual.toLowerCase() !== MODEL_VARIANTS[variant].sha256) {
+    logDebug(
+      'modelManager',
+      `checksum mismatch, expected ${MODEL_VARIANTS[variant].sha256}`,
+    );
     await removePartFile(variant);
     throw new ChecksumMismatchError(
       'Checksum mismatch — the downloaded file is corrupt or incomplete.',
@@ -177,6 +237,7 @@ async function verifyAndFinalize(variant: ModelVariant): Promise<void> {
   }
   await RNFS.moveFile(partPath, finalPath);
   await RNFS.writeFile(markerPath, MODEL_VARIANTS[variant].sha256, 'utf8');
+  logDebug('modelManager', `model verified and finalized at ${finalPath}`);
 }
 
 export async function removePartFile(variant: ModelVariant): Promise<void> {

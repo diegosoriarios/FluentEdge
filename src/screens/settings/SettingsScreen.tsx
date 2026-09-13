@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Platform, ScrollView, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import { Screen } from '../../components/Screen';
 import { Button, Card, Chip, ProgressBar, SectionLabel } from '../../components/ui';
 import { colors, spacing } from '../../theme';
@@ -12,6 +12,10 @@ import type { LanguageCode } from '../../ai/languages';
 import { MODEL_VARIANTS } from '../../ai/modelConfig';
 import { getModelInfo } from '../../services/modelManager';
 import type { ModelInfo } from '../../services/modelManager';
+import {
+  clearDebugLogs,
+  getDebugLogText,
+} from '../../services/debugLog';
 import { formatBytes } from '../../utils/format';
 import {
   DEFAULT_HOUR,
@@ -50,6 +54,14 @@ export function SettingsScreen() {
   const { reset: resetDraft } = useOnboarding();
   const [togglingNotifications, setTogglingNotifications] = useState(false);
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
+  const [debugLogText, setDebugLogText] = useState('');
+
+  useEffect(() => {
+    const refresh = () => setDebugLogText(getDebugLogText());
+    refresh();
+    const interval = setInterval(refresh, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,6 +124,19 @@ export function SettingsScreen() {
   const retakeDiagnostic = async () => {
     resetDraft();
     await resetProfile();
+  };
+
+  const handleShareLogs = async () => {
+    try {
+      await Share.share({ message: debugLogText || 'No log entries yet.' });
+    } catch {
+      // User dismissed the share sheet — nothing to do.
+    }
+  };
+
+  const handleClearLogs = () => {
+    clearDebugLogs();
+    setDebugLogText('');
   };
 
   const toggleNotifications = async (enabled: boolean) => {
@@ -333,6 +358,29 @@ export function SettingsScreen() {
         </View>
       </Card>
 
+      <Card style={styles.card}>
+        <SectionLabel>Download diagnostics</SectionLabel>
+        <ScrollView style={styles.debugLogBox} nestedScrollEnabled>
+          <Text style={styles.debugLogText} selectable>
+            {debugLogText || 'No log entries yet.'}
+          </Text>
+        </ScrollView>
+        <View style={styles.buttonRow}>
+          <Button
+            title="Share logs"
+            variant="secondary"
+            onPress={handleShareLogs}
+            style={styles.half}
+          />
+          <Button
+            title="Clear"
+            variant="secondary"
+            onPress={handleClearLogs}
+            style={styles.half}
+          />
+        </View>
+      </Card>
+
       <Button
         title="Re-take diagnostic"
         variant="danger"
@@ -415,5 +463,18 @@ const styles = StyleSheet.create({
   },
   half: {
     flex: 1,
+  },
+  debugLogBox: {
+    maxHeight: 220,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: spacing.sm,
+  },
+  debugLogText: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textMuted,
+    fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
   },
 });

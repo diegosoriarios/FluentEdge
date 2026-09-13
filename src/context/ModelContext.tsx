@@ -40,6 +40,7 @@ import {
 } from '../ai/tutor';
 import type { EvaluateCallbacks } from '../ai/tutor';
 import type { Evaluation, Profile } from '../navigation/types';
+import { logDebug } from '../services/debugLog';
 
 export type ModelState =
   | 'not-downloaded'
@@ -101,6 +102,14 @@ export function ModelProvider({ children }: { children: ReactNode }) {
   const taskRef = useRef<ReturnType<typeof startDownload> | null>(null);
   const releaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef(0);
+  const prevStateRef = useRef<ModelState>(modelState);
+
+  useEffect(() => {
+    if (prevStateRef.current !== modelState) {
+      logDebug('model', `state ${prevStateRef.current} -> ${modelState}`);
+      prevStateRef.current = modelState;
+    }
+  }, [modelState]);
 
   const makeCallbacks = useCallback((): DownloadCallbacks => {
     return {
@@ -134,6 +143,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       await refreshCapability();
       try {
         const downloaded = await getDownloadedVariant();
+        logDebug('model', `startup: downloaded variant = ${downloaded ?? 'none'}`);
         if (downloaded && !cancelled) {
           setActiveVariant(downloaded);
           setProgress(1);
@@ -171,6 +181,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
 
   const startDownloadImpl = useCallback(
     (network: NetworkChoice, variant: ModelVariant = 'full') => {
+      logDebug('model', `startDownload requested network=${network} variant=${variant}`);
       try {
         assertModelConfigured(variant);
       } catch (error) {
@@ -195,16 +206,19 @@ export function ModelProvider({ children }: { children: ReactNode }) {
   );
 
   const pauseDownload = useCallback(() => {
+    logDebug('model', 'pause requested');
     taskRef.current?.pause();
     setModelState('paused');
   }, []);
 
   const resumeDownload = useCallback(() => {
+    logDebug('model', 'resume requested');
     taskRef.current?.resume();
     setModelState('downloading');
   }, []);
 
   const cancelDownload = useCallback(async () => {
+    logDebug('model', 'cancel requested');
     taskRef.current?.stop();
     taskRef.current = null;
     await removePartFile(activeVariant).catch(() => {});
