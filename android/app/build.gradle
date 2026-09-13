@@ -92,15 +92,26 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (
+                project.hasProperty('FLUENTEDGE_UPLOAD_STORE_FILE') &&
+                project.hasProperty('FLUENTEDGE_UPLOAD_STORE_PASSWORD') &&
+                project.hasProperty('FLUENTEDGE_UPLOAD_KEY_ALIAS') &&
+                project.hasProperty('FLUENTEDGE_UPLOAD_KEY_PASSWORD')
+            ) {
+                storeFile file(FLUENTEDGE_UPLOAD_STORE_FILE)
+                storePassword FLUENTEDGE_UPLOAD_STORE_PASSWORD
+                keyAlias FLUENTEDGE_UPLOAD_KEY_ALIAS
+                keyPassword FLUENTEDGE_UPLOAD_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }

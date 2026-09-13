@@ -33,6 +33,9 @@ local.properties
 .cxx/
 *.keystore
 !debug.keystore
+*.keystore.b64
+*.jks
+fluentedge-release.keystore*
 .kotlin/
 
 # node.js

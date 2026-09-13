@@ -1,0 +1,53 @@
+name: Release APK
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: npm ci
+
+      - name: Decode release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.FLUENTEDGE_RELEASE_KEYSTORE }}
+        run: echo "$KEYSTORE_BASE64" | base64 --decode > android/app/fluentedge-release.keystore
+
+      - name: Write signing properties
+        env:
+          STORE_PASSWORD: ${{ secrets.FLUENTEDGE_RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.FLUENTEDGE_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.FLUENTEDGE_RELEASE_KEY_PASSWORD }}
+        run: |
+          printf '\nFLUENTEDGE_UPLOAD_STORE_FILE=fluentedge-release.keystore\nFLUENTEDGE_UPLOAD_STORE_PASSWORD=%s\nFLUENTEDGE_UPLOAD_KEY_ALIAS=%s\nFLUENTEDGE_UPLOAD_KEY_PASSWORD=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" >> "$HOME/.gradle/gradle.properties"
+
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      - name: Attach APK to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/release/app-release.apk
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
