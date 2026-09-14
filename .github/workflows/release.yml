@@ -25,6 +25,9 @@ jobs:
           java-version: '17'
 
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+          gradle-home-cache-cleanup: true
 
       - run: npm ci
 
@@ -43,7 +46,7 @@ jobs:
 
       - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease --build-cache --no-configuration-cache
 
       - name: Attach APK to release
         uses: softprops/action-gh-release@v2
