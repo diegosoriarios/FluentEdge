@@ -8,7 +8,6 @@ import {
   useState,
 } from 'react';
 import {
-  clearProfileRow,
   getProfileRow,
   saveProfileRow,
 } from '../data';
@@ -19,9 +18,11 @@ type ProfileContextValue = {
   loading: boolean;
   profile: Profile | null;
   isComplete: boolean;
+  retaking: boolean;
   saveProfile: (profile: Profile) => Promise<void>;
   completeOnboarding: (draft: OnboardingDraft) => Promise<void>;
-  resetProfile: () => Promise<void>;
+  startRetake: () => void;
+  cancelRetake: () => void;
 };
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
@@ -29,6 +30,7 @@ const ProfileContext = createContext<ProfileContextValue | null>(null);
 export function ProfileProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [retaking, setRetaking] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,13 +71,17 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         lastLevelAdjustAt: null,
       };
       await saveProfile(next);
+      setRetaking(false);
     },
     [saveProfile],
   );
 
-  const resetProfile = useCallback(async () => {
-    await clearProfileRow();
-    setProfile(null);
+  const startRetake = useCallback(() => {
+    setRetaking(true);
+  }, []);
+
+  const cancelRetake = useCallback(() => {
+    setRetaking(false);
   }, []);
 
   const value = useMemo(
@@ -83,11 +89,13 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       loading,
       profile,
       isComplete: profile?.completedAt != null,
+      retaking,
       saveProfile,
       completeOnboarding,
-      resetProfile,
+      startRetake,
+      cancelRetake,
     }),
-    [loading, profile, saveProfile, completeOnboarding, resetProfile],
+    [loading, profile, retaking, saveProfile, completeOnboarding, startRetake, cancelRetake],
   );
 
   return (

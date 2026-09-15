@@ -25,12 +25,13 @@ import type { NavigationProp } from '@react-navigation/native';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { loading, isComplete, profile } = useProfile();
+  const { loading, isComplete, profile, retaking } = useProfile();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const notificationsEnabled = profile?.notificationsEnabled ?? false;
+  const showMainApp = isComplete && !retaking;
 
   useEffect(() => {
-    if (loading || !isComplete) {
+    if (loading || !showMainApp) {
       return undefined;
     }
     let cancelled = false;
@@ -107,7 +108,7 @@ export function RootNavigator() {
       unsubscribeForeground();
       appStateSubscription.remove();
     };
-  }, [loading, isComplete, notificationsEnabled, navigation]);
+  }, [loading, showMainApp, notificationsEnabled, navigation]);
 
   if (loading) {
     return null;
@@ -115,7 +116,7 @@ export function RootNavigator() {
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {isComplete ? (
+      {showMainApp ? (
         <>
           <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen

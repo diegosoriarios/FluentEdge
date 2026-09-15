@@ -38,7 +38,7 @@ const MODEL_STATE_LABELS: Record<string, string> = {
 };
 
 export function SettingsScreen() {
-  const { profile, saveProfile, resetProfile } = useProfile();
+  const { profile, saveProfile, startRetake } = useProfile();
   const {
     modelState,
     progress,
@@ -121,9 +121,9 @@ export function SettingsScreen() {
     );
   };
 
-  const retakeDiagnostic = async () => {
+  const retakeDiagnostic = () => {
     resetDraft();
-    await resetProfile();
+    startRetake();
   };
 
   const handleShareLogs = async () => {
