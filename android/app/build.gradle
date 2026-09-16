@@ -73,6 +73,9 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+def fluentedgeVersionCode = (project.findProperty("fluentedgeVersionCode") ?: "1").toInteger()
+def fluentedgeVersionName = (project.findProperty("fluentedgeVersionName") ?: "1.0").toString()
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -83,11 +86,8 @@ android {
         applicationId "com.fluentedge"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
-	ndk {
-        	abiFilters "arm64-v8a", "armeabi-v7a"
-    	}
+        versionCode fluentedgeVersionCode
+        versionName fluentedgeVersionName
     }
     signingConfigs {
         debug {
