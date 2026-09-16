@@ -100,6 +100,17 @@ jest.mock('@kesha-antonov/react-native-background-downloader', () => {
   };
 });
 
+jest.mock('react-native-vector-icons/MaterialIcons', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+  const Icon = props => <Text>{props.name}</Text>;
+  Icon.getName = jest.fn(name => name);
+  Icon.getRawGlyphMap = jest.fn(() => ({}));
+  Icon.hasIcon = jest.fn(() => true);
+  Icon.loadFont = jest.fn(() => Promise.resolve());
+  return Icon;
+});
+
 jest.mock('llama.rn', () => require('llama.rn/jest/mock'));
 
 jest.mock('@notifee/react-native', () =>

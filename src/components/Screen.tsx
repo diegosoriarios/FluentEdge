@@ -1,5 +1,12 @@
 import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing } from '../theme';
@@ -9,10 +16,18 @@ type Props = {
   subtitle?: string;
   children?: ReactNode;
   scroll?: boolean;
+  avoidKeyboard?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
-export function Screen({ title, subtitle, children, scroll = true, style }: Props) {
+export function Screen({
+  title,
+  subtitle,
+  children,
+  scroll = true,
+  avoidKeyboard = false,
+  style,
+}: Props) {
   const header =
     title || subtitle ? (
       <View style={styles.header}>
@@ -21,26 +36,35 @@ export function Screen({ title, subtitle, children, scroll = true, style }: Prop
       </View>
     ) : null;
 
-  return (
-    <SafeAreaView style={styles.safe}>
-      {scroll ? (
-        <ScrollView
-          style={styles.fill}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled">
-          {header}
-          <View style={[styles.content, style]}>{children}</View>
-        </ScrollView>
-      ) : (
-        <View style={styles.fill}>
-          {header}
-          <View style={[styles.content, styles.contentFill, style]}>
-            {children}
-          </View>
+  let content: ReactNode =
+    scroll ? (
+      <ScrollView
+        style={styles.fill}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled">
+        {header}
+        <View style={[styles.content, style]}>{children}</View>
+      </ScrollView>
+    ) : (
+      <View style={styles.fill}>
+        {header}
+        <View style={[styles.content, styles.contentFill, style]}>
+          {children}
         </View>
-      )}
-    </SafeAreaView>
-  );
+      </View>
+    );
+
+  if (avoidKeyboard) {
+    content = (
+      <KeyboardAvoidingView
+        style={styles.fill}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {content}
+      </KeyboardAvoidingView>
+    );
+  }
+
+  return <SafeAreaView style={styles.safe}>{content}</SafeAreaView>;
 }
 
 const styles = StyleSheet.create({

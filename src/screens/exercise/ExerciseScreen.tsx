@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
 import { Button, Card } from '../../components/ui';
@@ -101,6 +101,7 @@ export function ExerciseScreen({ route, navigation }: Props) {
     if (!session || !canSubmit) {
       return;
     }
+    Keyboard.dismiss();
     clearAutosaveTimer();
     lastSavedRef.current = text;
     setEvaluating(true);
@@ -216,7 +217,7 @@ export function ExerciseScreen({ route, navigation }: Props) {
   }
 
   return (
-    <Screen title="Exercise" scroll={false}>
+    <Screen title="Exercise" scroll={false} avoidKeyboard>
       <Card style={styles.promptCard}>
         <Text style={styles.promptLabel}>Writing prompt</Text>
         <Text style={styles.promptText}>{session.prompt}</Text>

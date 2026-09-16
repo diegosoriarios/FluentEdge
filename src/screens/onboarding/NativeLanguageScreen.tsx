@@ -22,7 +22,8 @@ export function NativeLanguageScreen({ navigation }: Props) {
   return (
     <Screen
       title="Your native language"
-      subtitle="Optional — helps anticipate typical mistakes">
+      subtitle="Optional — helps anticipate typical mistakes"
+      avoidKeyboard>
       <TextInput
         value={value}
         onChangeText={setValue}
