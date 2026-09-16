@@ -114,10 +114,25 @@ export function buildPromptGenSystemPrompt(
     '',
     'Rules:',
     `- One task the user can answer in 80-150 words, in ${target.name}.`,
+    '- The task must be open-ended: the user writes full sentences or paragraphs.',
+    '- Never write fill-in-the-blank, multiple-choice, matching, or single-word-answer tasks.',
     '- Match the level; target the focus areas and recurring mistakes.',
     '',
     'Respond ONLY with the prompt text.',
   ].join('\n');
+}
+
+export function isLowQualityPrompt(text: string): boolean {
+  if (/_{2,}/.test(text)) {
+    return true;
+  }
+  if (/fill in the blank|choose the correct|complete the sentence/i.test(text)) {
+    return true;
+  }
+  if (/(^|\n)\s*\(?\s*[a-dA-D]\s*[).]\s+\S/.test(text)) {
+    return true;
+  }
+  return false;
 }
 
 function isStringRecord(value: unknown): value is Record<string, unknown> {
@@ -311,6 +326,11 @@ export async function generateWritingPrompt(
   const promptText = cleanGeneratedPrompt(result.text);
   if (promptText.length === 0) {
     throw new PromptGenerationError('The model returned an empty practice prompt.');
+  }
+  if (isLowQualityPrompt(promptText)) {
+    throw new PromptGenerationError(
+      'The model returned a fill-in-the-blank or multiple-choice prompt.',
+    );
   }
   return promptText;
 }

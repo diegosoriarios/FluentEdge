@@ -4,6 +4,7 @@ import {
   buildPromptGenSystemPrompt,
   cleanGeneratedPrompt,
   isEvaluation,
+  isLowQualityPrompt,
   parseEvaluation,
 } from '../tutor';
 
@@ -73,6 +74,54 @@ describe('buildPromptGenSystemPrompt', () => {
   it('omits the recurring mistakes line when the summary is empty', () => {
     const prompt = buildPromptGenSystemPrompt(PROFILE, '');
     expect(prompt).not.toContain('Recurring mistakes');
+  });
+
+  it('forbids fill-in-the-blank and multiple-choice tasks', () => {
+    const prompt = buildPromptGenSystemPrompt(PROFILE, '');
+    expect(prompt).toContain(
+      'Never write fill-in-the-blank, multiple-choice, matching, or single-word-answer tasks.',
+    );
+    expect(prompt).toContain('The task must be open-ended');
+  });
+});
+
+describe('isLowQualityPrompt', () => {
+  it('rejects fill-in-the-blank prompts', () => {
+    expect(isLowQualityPrompt('I ___ here since 2019.')).toBe(true);
+    expect(isLowQualityPrompt('She __ the report yesterday.')).toBe(true);
+  });
+
+  it('rejects explicit fill-blank or choose instructions', () => {
+    expect(isLowQualityPrompt('Fill in the blank with the right word.')).toBe(
+      true,
+    );
+    expect(
+      isLowQualityPrompt('Choose the correct option to complete the sentence.'),
+    ).toBe(true);
+  });
+
+  it('rejects multiple-choice option lists', () => {
+    expect(
+      isLowQualityPrompt(
+        'Which sentence is correct?\na) We discussed about the plan.\nb) We discussed the plan.',
+      ),
+    ).toBe(true);
+    expect(
+      isLowQualityPrompt('Pick one:\n(A) email\n(B) report\n(C) memo'),
+    ).toBe(true);
+  });
+
+  it('accepts open-ended writing prompts', () => {
+    expect(
+      isLowQualityPrompt(
+        'Write a short email to a colleague apologizing for missing a meeting and proposing a new time.',
+      ),
+    ).toBe(false);
+    expect(
+      isLowQualityPrompt(
+        'Describe a city street as if it were a character with a personality.',
+      ),
+    ).toBe(false);
   });
 });
 
