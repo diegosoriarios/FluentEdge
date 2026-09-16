@@ -45,6 +45,7 @@ export function SettingsScreen() {
     errorMessage,
     activeVariant,
     deviceCapability,
+    pauseSupported,
     startDownload,
     pauseDownload,
     resumeDownload,
@@ -304,20 +305,29 @@ export function SettingsScreen() {
           </>
         ) : null}
         {modelState === 'downloading' ? (
-          <View style={styles.buttonRow}>
-            <Button
-              title="Pause"
-              variant="secondary"
-              onPress={pauseDownload}
-              style={styles.half}
-            />
+          pauseSupported ? (
+            <View style={styles.buttonRow}>
+              <Button
+                title="Pause"
+                variant="secondary"
+                onPress={pauseDownload}
+                style={styles.half}
+              />
+              <Button
+                title="Cancel"
+                variant="danger"
+                onPress={cancelDownload}
+                style={styles.half}
+              />
+            </View>
+          ) : (
             <Button
               title="Cancel"
               variant="danger"
               onPress={cancelDownload}
-              style={styles.half}
+              style={styles.action}
             />
-          </View>
+          )
         ) : null}
         {modelState === 'paused' ? (
           <View style={styles.buttonRow}>

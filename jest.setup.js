@@ -52,6 +52,11 @@ jest.mock('react-native-fs', () => ({
     hash: jest.fn(() => Promise.resolve('0'.repeat(64))),
     writeFile: jest.fn(() => Promise.resolve()),
     readFile: jest.fn(() => Promise.resolve('')),
+    downloadFile: jest.fn(() => ({
+      jobId: 1,
+      promise: Promise.resolve({ jobId: 1, statusCode: 200, bytesWritten: 0 }),
+    })),
+    stopDownload: jest.fn(),
     stat: jest.fn(() =>
       Promise.resolve({
         size: 1_950_000_000,

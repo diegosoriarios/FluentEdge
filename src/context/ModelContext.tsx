@@ -26,8 +26,10 @@ import {
 } from '../services/modelManager';
 import type {
   DownloadCallbacks,
+  ManagedDownload,
   NetworkChoice,
 } from '../services/modelManager';
+import { BACKGROUND_DOWNLOAD_ENABLED } from '../services/modelManager';
 import type { ModelVariant } from '../ai/modelConfig';
 import {
   checkDeviceCapabilities,
@@ -57,6 +59,7 @@ type ModelContextValue = {
   errorMessage: string | null;
   activeVariant: ModelVariant;
   deviceCapability: DeviceCapability | null;
+  pauseSupported: boolean;
   refreshCapability: () => Promise<void>;
   startDownload: (network: NetworkChoice, variant?: ModelVariant) => void;
   pauseDownload: () => void;
@@ -100,7 +103,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
   const [activeVariant, setActiveVariant] = useState<ModelVariant>('full');
   const [deviceCapability, setDeviceCapability] =
     useState<DeviceCapability | null>(null);
-  const taskRef = useRef<ReturnType<typeof startDownload> | null>(null);
+  const taskRef = useRef<ManagedDownload | null>(null);
   const releaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef(0);
   const prevStateRef = useRef<ModelState>(modelState);
@@ -153,8 +156,18 @@ export function ModelProvider({ children }: { children: ReactNode }) {
         }
         for (const variant of ['full', 'small'] as ModelVariant[]) {
           const existing = await findExistingTask(variant);
-          if (existing && !cancelled) {
-            taskRef.current = existing;
+          if (existing && !cancelled && BACKGROUND_DOWNLOAD_ENABLED) {
+            taskRef.current = {
+              pause: () => {
+                existing.pause().catch(() => {});
+              },
+              resume: () => {
+                existing.resume().catch(() => {});
+              },
+              stop: () => {
+                existing.stop().catch(() => {});
+              },
+            };
             setActiveVariant(variant);
             setProgress(
               existing.bytesTotal > 0
@@ -328,6 +341,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       errorMessage,
       activeVariant,
       deviceCapability,
+      pauseSupported: BACKGROUND_DOWNLOAD_ENABLED,
       refreshCapability,
       startDownload: startDownloadImpl,
       pauseDownload,

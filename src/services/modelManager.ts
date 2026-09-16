@@ -1,4 +1,5 @@
 import RNFS from 'react-native-fs';
+import { Platform } from 'react-native';
 import {
   createDownloadTask,
   getExistingDownloadTasks,
@@ -32,6 +33,19 @@ export class DownloadError extends ModelManagerError {
 }
 
 export type NetworkChoice = 'wifi' | 'all';
+
+// The background downloader's UIDT job silently stalls on this device
+// (Android 16: neither the UIDT job nor the foreground service produces
+// events). Direct RNFS downloads work reliably in the foreground. Flip this
+// to true once the library issue is understood and re-verified.
+export const BACKGROUND_DOWNLOAD_ENABLED = false;
+
+// Abstraction over both download paths so ModelContext can hold either.
+export type ManagedDownload = {
+  pause: () => void;
+  resume: () => void;
+  stop: () => void;
+};
 
 export type DownloadCallbacks = {
   onProgress: (percent: number) => void;
@@ -156,13 +170,38 @@ export function watchTask(
     }
     const elapsed = Date.now() - watchdogStart;
     if (elapsed >= watchdogStages[watchdogStage]) {
-      logDebug(
-        'download',
-        `no begin event after ${Math.round(elapsed / 1000)}s — ` +
-          `native accepted start() but nothing came back; download may be ` +
-          `deferred by JobScheduler or stuck. Check logcat.`,
-      );
       watchdogStage += 1;
+      (async () => {
+        try {
+          const tasks = await getExistingDownloadTasks();
+          if (tasks.length === 0) {
+            logDebug(
+              'download',
+              `no begin event after ${Math.round(elapsed / 1000)}s — ` +
+                `native probe: 0 tasks — native DROPPED the download ` +
+                `(UIDT + service both declined)`,
+            );
+          } else {
+            const summary = tasks
+              .map(probeTask =>
+                `${probeTask.id}:${probeTask.state} ` +
+                `${probeTask.bytesDownloaded}/${probeTask.bytesTotal}`,
+              )
+              .join(', ');
+            logDebug(
+              'download',
+              `no begin event after ${Math.round(elapsed / 1000)}s — ` +
+                `native probe: ${tasks.length} task(s) [${summary}]`,
+            );
+          }
+        } catch (error) {
+          logDebug(
+            'download',
+            `native probe failed after ${Math.round(elapsed / 1000)}s`,
+            error,
+          );
+        }
+      })().catch(() => {});
     }
   }, 1_000);
   const stopWatchdog = () => clearInterval(watchdog);
@@ -213,7 +252,11 @@ export function startDownload(
   variant: ModelVariant,
   network: NetworkChoice,
   callbacks: DownloadCallbacks,
-): DownloadTask {
+): ManagedDownload {
+  logDebug('modelManager', `device: Android API ${Platform.Version}`);
+  if (!BACKGROUND_DOWNLOAD_ENABLED) {
+    return startDirectDownload(variant, network, callbacks);
+  }
   const { partPath } = modelPaths(variant);
   const config = MODEL_VARIANTS[variant];
   logDebug('modelManager', 'startDownload', {
@@ -234,7 +277,89 @@ export function startDownload(
   watchTask(task, variant, callbacks);
   task.start();
   logDebug('modelManager', `task.start() called id=${task.id}`);
-  return task;
+  return {
+    pause: () => {
+      task.pause().catch(() => {});
+    },
+    resume: () => {
+      task.resume().catch(() => {});
+    },
+    stop: () => {
+      task.stop().catch(() => {});
+    },
+  };
+}
+
+function startDirectDownload(
+  variant: ModelVariant,
+  network: NetworkChoice,
+  callbacks: DownloadCallbacks,
+): ManagedDownload {
+  const { partPath } = modelPaths(variant);
+  const config = MODEL_VARIANTS[variant];
+  logDebug('modelManager', 'direct download starting (background downloader disabled)', {
+    variant,
+    url: config.url,
+    destination: partPath,
+    networkPreferenceIgnored: network,
+  });
+  let lastLoggedPercent = -1;
+  let stopped = false;
+  const job = RNFS.downloadFile({
+    fromUrl: config.url,
+    toFile: partPath,
+    background: false,
+    progressInterval: 1000,
+    begin: ({ contentLength }) => {
+      logDebug('download', `begin expectedBytes=${contentLength}`);
+    },
+    progress: ({ bytesWritten, contentLength }) => {
+      const percent = clamp01(
+        contentLength > 0 ? bytesWritten / contentLength : 0,
+      );
+      const wholePercent = Math.floor(percent * 100);
+      if (wholePercent !== lastLoggedPercent) {
+        lastLoggedPercent = wholePercent;
+        logDebug(
+          'download',
+          `progress ${wholePercent}% (${bytesWritten}/${contentLength})`,
+        );
+      }
+      callbacks.onProgress(percent);
+    },
+  });
+  job.promise
+    .then(async () => {
+      logDebug('download', `done jobId=${job.jobId}`);
+      callbacks.onVerifying();
+      try {
+        await verifyAndFinalize(variant);
+        callbacks.onReady();
+      } catch (error) {
+        callbacks.onError(toManagerError(error));
+      }
+    })
+    .catch(error => {
+      if (stopped) {
+        logDebug('download', 'stopped by user — ignoring abort error');
+        return;
+      }
+      logDebug('download', `ERROR jobId=${job.jobId}`, error);
+      callbacks.onError(new DownloadError(String(error)));
+    });
+  return {
+    pause: () => {
+      logDebug('download', 'pause not supported in direct mode — use Cancel');
+    },
+    resume: () => {
+      logDebug('download', 'resume not supported in direct mode');
+    },
+    stop: () => {
+      stopped = true;
+      logDebug('download', `stop requested jobId=${job.jobId}`);
+      RNFS.stopDownload(job.jobId);
+    },
+  };
 }
 
 async function verifyAndFinalize(variant: ModelVariant): Promise<void> {

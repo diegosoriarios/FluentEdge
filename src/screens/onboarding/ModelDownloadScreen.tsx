@@ -21,6 +21,7 @@ export function ModelDownloadScreen(_props: Props) {
     errorMessage,
     activeVariant,
     deviceCapability,
+    pauseSupported,
     startDownload,
     pauseDownload,
     resumeDownload,
@@ -165,10 +166,14 @@ export function ModelDownloadScreen(_props: Props) {
       ) : null}
 
       {modelState === 'downloading' ? (
-        <View style={styles.row}>
-          <Button title="Pause" variant="secondary" onPress={pauseDownload} style={styles.half} />
-          <Button title="Cancel" variant="danger" onPress={cancelDownload} style={styles.half} />
-        </View>
+        pauseSupported ? (
+          <View style={styles.row}>
+            <Button title="Pause" variant="secondary" onPress={pauseDownload} style={styles.half} />
+            <Button title="Cancel" variant="danger" onPress={cancelDownload} style={styles.half} />
+          </View>
+        ) : (
+          <Button title="Cancel" variant="danger" onPress={cancelDownload} />
+        )
       ) : null}
       {modelState === 'paused' ? (
         <View style={styles.row}>
