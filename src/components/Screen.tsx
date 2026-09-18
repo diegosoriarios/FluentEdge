@@ -1,15 +1,7 @@
-import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import {
-  Keyboard,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import type { KeyboardEvent } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing } from '../theme';
 
@@ -22,28 +14,6 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-function useKeyboardHeight(enabled: boolean) {
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-    const showEvent =
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const show = Keyboard.addListener(showEvent, (event: KeyboardEvent) => {
-      setKeyboardHeight(event.endCoordinates.height);
-    });
-    const hide = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardHeight(0);
-    });
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, [enabled]);
-  return keyboardHeight;
-}
-
 export function Screen({
   title,
   subtitle,
@@ -52,7 +22,6 @@ export function Screen({
   avoidKeyboard = false,
   style,
 }: Props) {
-  const keyboardHeight = useKeyboardHeight(avoidKeyboard);
   const header =
     title || subtitle ? (
       <View style={styles.header}>
@@ -81,13 +50,9 @@ export function Screen({
 
   if (avoidKeyboard) {
     content = (
-      <View
-        style={[
-          styles.fill,
-          keyboardHeight > 0 ? { paddingBottom: keyboardHeight } : null,
-        ]}>
+      <KeyboardAvoidingView style={styles.fill} behavior="padding">
         {content}
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 

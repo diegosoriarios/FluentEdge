@@ -215,6 +215,23 @@ describe('parseEvaluation', () => {
     expect(parseEvaluation(fenced)).toEqual(VALID_EVALUATION);
   });
 
+  it('parses JSON wrapped in XML-style tags', () => {
+    const tagged = '<json>\n' + JSON.stringify(VALID_EVALUATION) + '\n</json>';
+    expect(parseEvaluation(tagged)).toEqual(VALID_EVALUATION);
+  });
+
+  it('parses JSON with prose before and after', () => {
+    const noisy =
+      'Here is my evaluation:\n' +
+      JSON.stringify(VALID_EVALUATION) +
+      '\nHope this helps!';
+    expect(parseEvaluation(noisy)).toEqual(VALID_EVALUATION);
+  });
+
+  it('throws when no JSON object is present', () => {
+    expect(() => parseEvaluation('<json>no object here</json>')).toThrow();
+  });
+
   it('throws on malformed JSON', () => {
     expect(() => parseEvaluation('{not json}')).toThrow();
   });

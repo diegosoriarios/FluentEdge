@@ -100,6 +100,16 @@ jest.mock('@kesha-antonov/react-native-background-downloader', () => {
   };
 });
 
+jest.mock('react-native-keyboard-controller', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const KeyboardAvoidingView = props => (
+    <View style={props.style}>{props.children}</View>
+  );
+  const KeyboardProvider = ({ children }) => children;
+  return { KeyboardAvoidingView, KeyboardProvider };
+});
+
 jest.mock('react-native-vector-icons/MaterialIcons', () => {
   const React = require('react');
   const { Text } = require('react-native');

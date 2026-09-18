@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { StatusBar, useColorScheme } from 'react-native';
 import { setConfig } from '@kesha-antonov/react-native-background-downloader';
 import { DarkTheme, DefaultTheme, NavigationContainer } from '@react-navigation/native';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { ModelProvider } from './src/context/ModelContext';
@@ -24,18 +25,20 @@ function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <ErrorBoundary>
-        <ProfileProvider>
-          <ModelProvider>
-            <OnboardingProvider>
-              <NavigationContainer theme={isDarkMode ? DarkTheme : DefaultTheme}>
-                <RootNavigator />
-              </NavigationContainer>
-            </OnboardingProvider>
-          </ModelProvider>
-        </ProfileProvider>
-      </ErrorBoundary>
+      <KeyboardProvider>
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+        <ErrorBoundary>
+          <ProfileProvider>
+            <ModelProvider>
+              <OnboardingProvider>
+                <NavigationContainer theme={isDarkMode ? DarkTheme : DefaultTheme}>
+                  <RootNavigator />
+                </NavigationContainer>
+              </OnboardingProvider>
+            </ModelProvider>
+          </ProfileProvider>
+        </ErrorBoundary>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

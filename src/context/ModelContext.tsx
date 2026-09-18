@@ -78,7 +78,7 @@ type ModelContextValue = {
 
 const ModelContext = createContext<ModelContextValue | null>(null);
 
-export const MODEL_IDLE_RELEASE_MS = 5 * 60_000;
+export const MODEL_IDLE_RELEASE_MS = 60_000;
 
 function describeError(error: unknown): string {
   if (error instanceof LowStorageError) {
@@ -317,6 +317,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       releaseTimerRef.current = setTimeout(() => {
         releaseTimerRef.current = null;
         if (inFlightRef.current === 0) {
+          logDebug('ai', 'idle timeout reached, releasing model');
           releaseTutorModel().catch(() => {});
         }
       }, MODEL_IDLE_RELEASE_MS);

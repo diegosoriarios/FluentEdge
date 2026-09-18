@@ -9,6 +9,7 @@ import {
 import type { ModelVariant } from './modelConfig';
 import { languageConfig } from './languages';
 import { getVerifiedModelPath } from '../services/modelManager';
+import { logDebug } from '../services/debugLog';
 import type { Evaluation, Profile } from '../navigation/types';
 
 export class ModelInitError extends Error {}
@@ -171,12 +172,30 @@ export function isEvaluation(value: unknown): value is Evaluation {
   );
 }
 
+export function extractJsonBlock(text: string): string | null {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end <= start) {
+    return null;
+  }
+  return text.slice(start, end + 1);
+}
+
 export function parseEvaluation(raw: string): Evaluation {
   let text = raw.trim();
   if (text.startsWith('```')) {
     text = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
   }
-  const parsed: unknown = JSON.parse(text);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    const block = extractJsonBlock(text);
+    if (block == null) {
+      throw new SyntaxError('No JSON object found in model output.');
+    }
+    parsed = JSON.parse(block);
+  }
   if (!isEvaluation(parsed)) {
     throw new Error('Response does not match the evaluation schema.');
   }
@@ -222,11 +241,21 @@ export async function ensureModelLoaded(
 }
 
 export async function releaseModel(): Promise<void> {
-  const contexts = [...llamaContexts.values()];
+  const contexts = [...llamaContexts.entries()];
   llamaContexts.clear();
   initPromises.clear();
-  for (const context of contexts) {
-    await context.release();
+  for (const [variant, context] of contexts) {
+    try {
+      await context.release();
+      logDebug('ai', `model context released (${variant})`);
+    } catch (error) {
+      logDebug(
+        'ai',
+        `model context release failed (${variant}): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 }
 
@@ -283,6 +312,13 @@ export async function evaluateWriting(
       return parseEvaluation(result.text);
     } catch (error) {
       lastError = error;
+      logDebug(
+        'ai',
+        `evaluation parse failed (attempt ${attempt + 1}): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        `raw output: ${result.text.slice(0, 200)}`,
+      );
     }
   }
   throw new EvaluationError(
