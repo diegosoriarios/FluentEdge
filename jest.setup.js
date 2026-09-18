@@ -100,6 +100,18 @@ jest.mock('@kesha-antonov/react-native-background-downloader', () => {
   };
 });
 
+jest.mock('react-native-linear-gradient', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const LinearGradient = props => (
+    <View style={props.style}>{props.children}</View>
+  );
+  return {
+    __esModule: true,
+    default: LinearGradient,
+  };
+});
+
 jest.mock('react-native-keyboard-controller', () => {
   const React = require('react');
   const { View } = require('react-native');

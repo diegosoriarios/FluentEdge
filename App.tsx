@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { StatusBar, useColorScheme } from 'react-native';
+import { StatusBar } from 'react-native';
 import { setConfig } from '@kesha-antonov/react-native-background-downloader';
-import { DarkTheme, DefaultTheme, NavigationContainer } from '@react-navigation/native';
+import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
@@ -10,10 +10,22 @@ import { OnboardingProvider } from './src/context/OnboardingContext';
 import { ProfileProvider } from './src/context/ProfileContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { logDebug } from './src/services/debugLog';
+import { colors } from './src/theme';
+
+const KineticDarkTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: colors.bg,
+    card: colors.card,
+    border: colors.border,
+    text: colors.text,
+    primary: colors.primary,
+    notification: colors.streak,
+  },
+};
 
 function App() {
-  const isDarkMode = useColorScheme() === 'dark';
-
   useEffect(() => {
     setConfig({
       isLogsEnabled: true,
@@ -26,12 +38,12 @@ function App() {
   return (
     <SafeAreaProvider>
       <KeyboardProvider>
-        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+        <StatusBar barStyle="light-content" />
         <ErrorBoundary>
           <ProfileProvider>
             <ModelProvider>
               <OnboardingProvider>
-                <NavigationContainer theme={isDarkMode ? DarkTheme : DefaultTheme}>
+                <NavigationContainer theme={KineticDarkTheme}>
                   <RootNavigator />
                 </NavigationContainer>
               </OnboardingProvider>

@@ -4,7 +4,7 @@ import type { MainTabParamList } from './types';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { ProgressScreen } from '../screens/progress/ProgressScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
-import { colors } from '../theme';
+import { colors, fonts } from '../theme';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -27,7 +27,16 @@ export function MainTabs() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarInactiveTintColor: colors.subdued,
+        tabBarStyle: {
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+        },
+        tabBarLabelStyle: {
+          fontFamily: fonts.semibold,
+          fontSize: 11,
+        },
       }}>
       <Tab.Screen
         name="Home"

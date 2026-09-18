@@ -28,7 +28,7 @@ export function NativeLanguageScreen({ navigation }: Props) {
         value={value}
         onChangeText={setValue}
         placeholder="e.g. Portuguese"
-        placeholderTextColor={colors.textMuted}
+        placeholderTextColor={colors.subdued}
         style={styles.input}
         autoCorrect={false}
         autoCapitalize="words"
@@ -41,9 +41,9 @@ export function NativeLanguageScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   input: {
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    backgroundColor: colors.inverse,
+    borderWidth: 1.5,
+    borderColor: colors.inputBorder,
     borderRadius: radius.md,
     padding: spacing.md,
     fontSize: 16,

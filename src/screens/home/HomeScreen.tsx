@@ -6,7 +6,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
 import { Button, Card, Chip, SectionLabel } from '../../components/ui';
-import { colors, spacing } from '../../theme';
+import { colors, fonts, spacing } from '../../theme';
 import { useProfile } from '../../context/ProfileContext';
 import { useModel } from '../../context/ModelContext';
 import { useSessionStats, useWeakSpots } from '../../hooks/useSessionData';
@@ -74,11 +74,15 @@ export function HomeScreen({ navigation }: Props) {
           <Text style={styles.statLabel}>Sessions</Text>
         </Card>
         <Card style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.streakDays}</Text>
+          <Text style={[styles.statValue, { color: colors.streak }]}>
+            {stats.streakDays}
+          </Text>
           <Text style={styles.statLabel}>Day streak</Text>
         </Card>
         <Card style={styles.statCard}>
-          <Text style={styles.statValue}>{profile?.level ?? '—'}</Text>
+          <Text style={[styles.statValue, { color: colors.primary }]}>
+            {profile?.level ?? '—'}
+          </Text>
           <Text style={styles.statLabel}>Level</Text>
         </Card>
       </View>
@@ -159,8 +163,9 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.text,
+    fontFamily: fonts.extrabold,
   },
   statLabel: {
     fontSize: 12,

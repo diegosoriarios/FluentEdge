@@ -69,8 +69,8 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.md,
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: colors.inputBorder,
     marginLeft: spacing.sm + 2,
   },
   radioSelected: {

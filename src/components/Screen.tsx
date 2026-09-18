@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing } from '../theme';
+import { colors, fonts, spacing } from '../theme';
 
 type Props = {
   title?: string;
@@ -77,13 +77,16 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.text,
+    fontFamily: fonts.extrabold,
+    letterSpacing: -0.5,
   },
   subtitle: {
     marginTop: spacing.xs,
     fontSize: 15,
     color: colors.textMuted,
+    fontFamily: fonts.regular,
   },
   content: {
     padding: spacing.lg,

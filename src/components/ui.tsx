@@ -7,7 +7,8 @@ import {
   View,
 } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { colors, radius, spacing } from '../theme';
+import LinearGradient from 'react-native-linear-gradient';
+import { colors, fonts, radius, spacing } from '../theme';
 
 type ButtonProps = {
   title: string;
@@ -26,30 +27,44 @@ export function Button({
   variant = 'primary',
   style,
 }: ButtonProps) {
+  const inert = disabled || loading;
+  const label = (
+    <Text
+      style={[
+        styles.buttonText,
+        variant === 'secondary' && styles.buttonTextSecondary,
+        variant === 'danger' && styles.buttonTextDanger,
+      ]}>
+      {title}
+    </Text>
+  );
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled || loading}
+      disabled={inert}
       style={({ pressed }) => [
-        styles.button,
-        variant === 'primary' && styles.buttonPrimary,
-        variant === 'secondary' && styles.buttonSecondary,
-        variant === 'danger' && styles.buttonDanger,
+        styles.buttonWrap,
         (disabled || loading) && styles.buttonDisabled,
         pressed && styles.buttonPressed,
         style,
       ]}>
-      {loading ? (
-        <ActivityIndicator color={colors.card} />
+      {variant === 'primary' ? (
+        <LinearGradient
+          colors={[colors.primary, colors.violet]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={styles.buttonKinetic}>
+          {loading ? <ActivityIndicator color={colors.text} /> : label}
+        </LinearGradient>
       ) : (
-        <Text
+        <View
           style={[
-            styles.buttonText,
-            variant === 'secondary' && styles.buttonTextSecondary,
-            variant === 'danger' && styles.buttonTextDanger,
+            styles.buttonFlat,
+            variant === 'secondary' && styles.buttonSecondary,
+            variant === 'danger' && styles.buttonDanger,
           ]}>
-          {title}
-        </Text>
+          {loading ? <ActivityIndicator color={colors.primary} /> : label}
+        </View>
       )}
     </Pressable>
   );
@@ -92,30 +107,51 @@ export function SectionLabel({ children }: { children: string }) {
 }
 
 export function ProgressBar({ progress }: { progress: number }) {
+  const flex = Math.max(progress, 0.02);
   return (
     <View style={styles.progressTrack}>
-      <View style={[styles.progressFill, { flex: Math.max(progress, 0.02) }]} />
+      <LinearGradient
+        colors={[colors.primary, colors.success]}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+        style={[styles.progressFill, { flex }]}>
+        <View style={styles.progressTip} />
+      </LinearGradient>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
+  buttonWrap: {
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  buttonKinetic: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.lg,
     minHeight: 50,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.primaryDark,
   },
-  buttonPrimary: {
-    backgroundColor: colors.primary,
+  buttonFlat: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 50,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    borderRadius: radius.md,
   },
   buttonSecondary: {
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.glass,
+    borderWidth: 1,
+    borderColor: colors.borderBright,
   },
   buttonDanger: {
     backgroundColor: colors.dangerSoft,
+    borderWidth: 1,
+    borderColor: colors.danger + '55',
   },
   buttonDisabled: {
     opacity: 0.45,
@@ -124,12 +160,13 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   buttonText: {
-    color: colors.card,
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
+    fontFamily: fonts.semibold,
   },
   buttonTextSecondary: {
-    color: colors.primary,
+    color: colors.text,
   },
   buttonTextDanger: {
     color: colors.danger,
@@ -137,15 +174,21 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
+    borderTopColor: '#FFFFFF2E',
     borderColor: colors.border,
     padding: spacing.md,
+    shadowColor: '#000000',
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   chip: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.glass,
     borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderWidth: 1,
+    borderColor: colors.borderBright,
     paddingVertical: spacing.sm + 2,
     paddingHorizontal: spacing.md,
     marginRight: spacing.sm,
@@ -162,28 +205,40 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     fontWeight: '500',
+    fontFamily: fonts.medium,
   },
   chipTextSelected: {
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
+    fontFamily: fonts.semibold,
   },
   sectionLabel: {
     fontSize: 13,
     fontWeight: '600',
     color: colors.textMuted,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
     marginBottom: spacing.sm,
+    fontFamily: fonts.semibold,
   },
   progressTrack: {
     flexDirection: 'row',
-    height: 10,
+    height: 8,
     borderRadius: 999,
-    backgroundColor: colors.border,
+    backgroundColor: colors.surface2,
     overflow: 'hidden',
   },
   progressFill: {
-    backgroundColor: colors.primary,
     borderRadius: 999,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+  },
+  progressTip: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 2,
+    backgroundColor: colors.text,
+    opacity: 0.9,
   },
 });

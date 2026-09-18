@@ -476,10 +476,11 @@ const styles = StyleSheet.create({
   },
   debugLogBox: {
     maxHeight: 220,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 1.5,
+    borderColor: colors.inputBorder,
     borderRadius: 8,
     padding: spacing.sm,
+    backgroundColor: colors.inverse,
   },
   debugLogText: {
     fontSize: 11,

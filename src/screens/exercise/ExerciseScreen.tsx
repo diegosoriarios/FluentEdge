@@ -39,6 +39,7 @@ export function ExerciseScreen({ route, navigation }: Props) {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [tokenCount, setTokenCount] = useState(0);
   const [regenerating, setRegenerating] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSavedRef = useRef('');
@@ -234,11 +235,16 @@ export function ExerciseScreen({ route, navigation }: Props) {
         value={text}
         onChangeText={onChangeText}
         placeholder="Write your response here…"
-        placeholderTextColor={colors.textMuted}
+        placeholderTextColor={colors.subdued}
         multiline
         textAlignVertical="top"
-        style={styles.input}
+        style={[
+          styles.input,
+          inputFocused && styles.inputFocused,
+        ]}
         editable={!evaluating}
+        onFocus={() => setInputFocused(true)}
+        onBlur={() => setInputFocused(false)}
       />
       <View style={styles.footer}>
         <Text style={wordCount >= MIN_WORDS ? styles.countOk : styles.countLow}>
@@ -295,14 +301,17 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    backgroundColor: colors.inverse,
+    borderWidth: 1.5,
+    borderColor: colors.inputBorder,
     borderRadius: radius.md,
     padding: spacing.md,
     fontSize: 16,
     color: colors.text,
     lineHeight: 22,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
   },
   footer: {
     paddingTop: spacing.md,

@@ -115,10 +115,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   option: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.sm + 2,
+    backgroundColor: colors.surface2,
   },
   optionCorrect: {
     borderColor: colors.success,
