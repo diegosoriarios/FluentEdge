@@ -3,9 +3,11 @@ import {
   buildGradingSystemPrompt,
   buildPromptGenSystemPrompt,
   cleanGeneratedPrompt,
+  filterPhantomCorrections,
   isEvaluation,
   isLowQualityPrompt,
   parseEvaluation,
+  sanitizeForGrading,
 } from '../tutor';
 
 const PROFILE: Profile = {
@@ -82,6 +84,97 @@ describe('buildPromptGenSystemPrompt', () => {
       'Never write fill-in-the-blank, multiple-choice, matching, or single-word-answer tasks.',
     );
     expect(prompt).toContain('The task must be open-ended');
+  });
+
+  it('tells the grader to ignore artifacts and identical corrections', () => {
+    const prompt = buildGradingSystemPrompt(PROFILE, '');
+    expect(prompt).toContain(
+      'Ignore stray symbols, emojis, or accidental punctuation artifacts',
+    );
+    expect(prompt).toContain(
+      'Never report a correction whose corrected phrase is identical to the original phrase.',
+    );
+    expect(prompt).toContain('saying why the original is wrong');
+  });
+});
+
+describe('sanitizeForGrading', () => {
+  it('strips stray symbols and emoji but keeps words', () => {
+    expect(sanitizeForGrading('He goes *to school# every day.')).toBe(
+      'He goes to school every day.',
+    );
+    expect(sanitizeForGrading('I am happy 🙂 today')).toBe(
+      'I am happy  today',
+    );
+  });
+
+  it('keeps legitimate prose punctuation and numbers', () => {
+    const text = 'She said "wait" — then left. I have 2 cats: both sleep.';
+    expect(sanitizeForGrading(text)).toBe(text);
+  });
+
+  it('preserves Spanish letters and marks', () => {
+    const text = '¿Qué dices? ¡Muy bien! El niño tiene corazón.';
+    expect(sanitizeForGrading(text)).toBe(text);
+  });
+});
+
+describe('filterPhantomCorrections', () => {
+  const base = {
+    has_errors: true,
+    improved_paragraph: 'x',
+    strengths: 'y',
+  };
+
+  it('drops corrections whose phrases are identical', () => {
+    const evaluation = filterPhantomCorrections({
+      ...base,
+      corrections: [
+        {
+          original_phrase: 'we are seeing a positive result',
+          corrected_phrase: 'we are seeing a positive result',
+          error_type: 'Word Choice',
+          explanation: 'why',
+          quick_tip: 'tip',
+        },
+      ],
+    });
+    expect(evaluation.corrections).toHaveLength(0);
+    expect(evaluation.has_errors).toBe(false);
+  });
+
+  it('drops corrections that differ only by case or punctuation', () => {
+    const evaluation = filterPhantomCorrections({
+      ...base,
+      corrections: [
+        {
+          original_phrase: 'We are seeing a positive result.',
+          corrected_phrase: 'we are seeing a positive result',
+          error_type: 'Word Choice',
+          explanation: 'why',
+          quick_tip: 'tip',
+        },
+      ],
+    });
+    expect(evaluation.corrections).toHaveLength(0);
+    expect(evaluation.has_errors).toBe(false);
+  });
+
+  it('keeps genuine corrections and the has_errors flag', () => {
+    const evaluation = filterPhantomCorrections({
+      ...base,
+      corrections: [
+        {
+          original_phrase: 'we is seeing a positive result',
+          corrected_phrase: 'we are seeing a positive result',
+          error_type: 'Subject-Verb Agreement',
+          explanation: 'why',
+          quick_tip: 'tip',
+        },
+      ],
+    });
+    expect(evaluation.corrections).toHaveLength(1);
+    expect(evaluation.has_errors).toBe(true);
   });
 });
 

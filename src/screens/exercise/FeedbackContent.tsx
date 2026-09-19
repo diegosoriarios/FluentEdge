@@ -42,8 +42,7 @@ export function FeedbackContent({ session, readOnly = false }: Props) {
           return (
             <Pressable
               key={`${correction.original_phrase}-${index}`}
-              onPress={() => setExpanded(isOpen ? null : index)}
-              disabled={readOnly}>
+              onPress={() => setExpanded(isOpen ? null : index)}>
               <Card style={styles.correctionCard}>
                 <View style={styles.correctionHeader}>
                   <Chip label={correction.error_type} />
@@ -57,11 +56,11 @@ export function FeedbackContent({ session, readOnly = false }: Props) {
                     {correction.corrected_phrase}
                   </Text>
                 </View>
+                <Text style={styles.explanation}>
+                  {correction.explanation}
+                </Text>
                 {isOpen ? (
                   <View style={styles.detail}>
-                    <Text style={styles.explanation}>
-                      {correction.explanation}
-                    </Text>
                     <View style={styles.tipBox}>
                       <Text style={styles.tipLabel}>Quick tip</Text>
                       <Text style={styles.tipText}>{correction.quick_tip}</Text>
@@ -165,14 +164,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
   },
+  explanation: {
+    fontSize: 14,
+    color: colors.textMuted,
+    lineHeight: 20,
+    marginTop: 2,
+  },
   detail: {
     gap: spacing.sm,
     marginTop: spacing.xs,
-  },
-  explanation: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
   },
   tipBox: {
     backgroundColor: colors.primarySoft,

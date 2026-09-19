@@ -87,11 +87,15 @@ export function buildGradingSystemPrompt(
     '',
     'Rules:',
     '- Correct real errors only; do not invent errors.',
+    '- Ignore stray symbols, emojis, or accidental punctuation artifacts; they are not language errors.',
+    '- Never report a correction whose corrected phrase is identical to the original phrase.',
     '- Prioritize the focus areas and recurring mistakes.',
     '- error_type: prefer these tags: '
       + target.errorTaxonomy.join(', ')
       + '. Use a short tag if none fit.',
-    '- explanation and quick_tip: one short sentence each, in '
+    '- explanation: one sentence saying why the original is wrong, in '
+      + explanation.name
+      + '. quick_tip: one short actionable sentence, in '
       + explanation.name
       + '.',
     '- improved_paragraph: full rewrite, same meaning, natural '
@@ -179,6 +183,37 @@ export function extractJsonBlock(text: string): string | null {
     return null;
   }
   return text.slice(start, end + 1);
+}
+
+const GRADABLE_TEXT_PATTERN =
+  /[^\p{L}\p{N}\s.,!?;:'"()\u2013\u2014\u2026\u00A1\u00BF\u2018\u2019\u201C\u201D]/gu;
+
+export function sanitizeForGrading(text: string): string {
+  return text.replace(GRADABLE_TEXT_PATTERN, '');
+}
+
+export function normalizePhrase(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s.,!?;:'"()\u2013\u2014]+|[\s.,!?;:'"()\u2013\u2014]+$/g, '')
+    .trim();
+}
+
+export function filterPhantomCorrections(evaluation: Evaluation): Evaluation {
+  const corrections = evaluation.corrections.filter(
+    correction =>
+      normalizePhrase(correction.original_phrase) !==
+      normalizePhrase(correction.corrected_phrase),
+  );
+  if (corrections.length === evaluation.corrections.length) {
+    return evaluation;
+  }
+  return {
+    ...evaluation,
+    corrections,
+    has_errors: corrections.length > 0,
+  };
 }
 
 export function parseEvaluation(raw: string): Evaluation {
@@ -286,7 +321,7 @@ export async function evaluateWriting(
     },
     {
       role: 'user' as const,
-      content: `Writing prompt: ${prompt}\n\nResponse to review:\n${response}`,
+      content: `Writing prompt: ${prompt}\n\nResponse to review:\n${sanitizeForGrading(response)}`,
     },
   ];
 
@@ -309,7 +344,7 @@ export async function evaluateWriting(
       },
     );
     try {
-      return parseEvaluation(result.text);
+      return filterPhantomCorrections(parseEvaluation(result.text));
     } catch (error) {
       lastError = error;
       logDebug(
