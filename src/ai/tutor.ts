@@ -10,7 +10,7 @@ import type { ModelVariant } from './modelConfig';
 import { languageConfig } from './languages';
 import { getVerifiedModelPath } from '../services/modelManager';
 import { logDebug } from '../services/debugLog';
-import type { Evaluation, Profile } from '../navigation/types';
+import type { Correction, Evaluation, Profile } from '../navigation/types';
 
 export class ModelInitError extends Error {}
 
@@ -89,6 +89,7 @@ export function buildGradingSystemPrompt(
     '- Correct real errors only; do not invent errors.',
     '- Ignore stray symbols, emojis, or accidental punctuation artifacts; they are not language errors.',
     '- Never report a correction whose corrected phrase is identical to the original phrase.',
+    '- If you are not sure there is an error, do not report a correction. Never write "no error" or "nothing wrong" inside a correction.',
     '- Prioritize the focus areas and recurring mistakes.',
     '- error_type: prefer these tags: '
       + target.errorTaxonomy.join(', ')
@@ -200,11 +201,22 @@ export function normalizePhrase(value: string): string {
     .trim();
 }
 
+const NO_ERROR_CLAIM_PATTERN =
+  /no\s+(real\s+)?(error|mistake|issue|problems?)|nothing\s+(is\s+)?wrong|(is|are|seems|looks)\s+(already\s+)?correct(\s+as\s+(written|is))?|sin\s+error(es)?|no\s+hay\s+error(es)?|ning[uú]n\s+error|est[aá]\s+(correcto|bien)|es\s+correcto|no\s+es\s+un\s+error/i;
+
+export function isSelfContradictory(correction: Correction): boolean {
+  return (
+    NO_ERROR_CLAIM_PATTERN.test(correction.explanation) ||
+    NO_ERROR_CLAIM_PATTERN.test(correction.quick_tip)
+  );
+}
+
 export function filterPhantomCorrections(evaluation: Evaluation): Evaluation {
   const corrections = evaluation.corrections.filter(
     correction =>
       normalizePhrase(correction.original_phrase) !==
-      normalizePhrase(correction.corrected_phrase),
+        normalizePhrase(correction.corrected_phrase) &&
+      !isSelfContradictory(correction),
   );
   if (corrections.length === evaluation.corrections.length) {
     return evaluation;

@@ -94,6 +94,9 @@ describe('buildPromptGenSystemPrompt', () => {
     expect(prompt).toContain(
       'Never report a correction whose corrected phrase is identical to the original phrase.',
     );
+    expect(prompt).toContain(
+      'If you are not sure there is an error, do not report a correction.',
+    );
     expect(prompt).toContain('saying why the original is wrong');
   });
 });
@@ -174,6 +177,65 @@ describe('filterPhantomCorrections', () => {
       ],
     });
     expect(evaluation.corrections).toHaveLength(1);
+    expect(evaluation.has_errors).toBe(true);
+  });
+
+  it('drops corrections whose explanation claims there is no error', () => {
+    const evaluation = filterPhantomCorrections({
+      ...base,
+      corrections: [
+        {
+          original_phrase: 'He go to school.',
+          corrected_phrase: 'He goes to school.',
+          error_type: 'Subject-Verb Agreement',
+          explanation: 'No error, the sentence is fine.',
+          quick_tip: 'Keep it up!',
+        },
+      ],
+    });
+    expect(evaluation.corrections).toHaveLength(0);
+    expect(evaluation.has_errors).toBe(false);
+  });
+
+  it('drops corrections with Spanish no-error explanations', () => {
+    const evaluation = filterPhantomCorrections({
+      ...base,
+      corrections: [
+        {
+          original_phrase: 'Ella fue al mercado.',
+          corrected_phrase: 'Ella fue al mercado ayer.',
+          error_type: 'Word Choice',
+          explanation: 'Sin error, la frase es correcta.',
+          quick_tip: 'Ningún cambio necesario.',
+        },
+      ],
+    });
+    expect(evaluation.corrections).toHaveLength(0);
+    expect(evaluation.has_errors).toBe(false);
+  });
+
+  it('keeps corrections whose explanations explain the mistake', () => {
+    const evaluation = filterPhantomCorrections({
+      ...base,
+      corrections: [
+        {
+          original_phrase: 'He go to school.',
+          corrected_phrase: 'He goes to school.',
+          error_type: 'Subject-Verb Agreement',
+          explanation:
+            'Third person singular takes -s in the present simple.',
+          quick_tip: 'He/she/it + verb-s.',
+        },
+        {
+          original_phrase: 'Ella fue al mercado.',
+          corrected_phrase: 'Ella fue al mercado ayer.',
+          error_type: 'Word Choice',
+          explanation: 'La frase original no indica cuándo ocurrió.',
+          quick_tip: 'Añade un marcador de tiempo.',
+        },
+      ],
+    });
+    expect(evaluation.corrections).toHaveLength(2);
     expect(evaluation.has_errors).toBe(true);
   });
 });
