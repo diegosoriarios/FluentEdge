@@ -6,6 +6,7 @@ import notifee, {
   TimestampTrigger,
   TriggerType,
 } from '@notifee/react-native';
+import type { Notification } from '@notifee/react-native';
 import {
   ensureQuestionsSeeded,
   getUnansweredDailyQuestion,
@@ -13,6 +14,7 @@ import {
 import type { DailyQuestionRecord } from '../data/questions';
 
 export const DAILY_NOTIFICATION_ID = 'daily-practice';
+export const TEST_NOTIFICATION_ID = 'daily-practice-test';
 export const ANDROID_CHANNEL_ID = 'daily-practice';
 export const IOS_CATEGORY_ID = 'daily_question';
 export const DEFAULT_HOUR = 19;
@@ -81,16 +83,33 @@ async function ensureAndroidChannel(): Promise<void> {
   });
 }
 
-export async function refreshDailyNotification(
-  hour = DEFAULT_HOUR,
-  minute = DEFAULT_MINUTE,
-): Promise<DailyQuestionRecord | null> {
-  await ensureQuestionsSeeded();
-  const question = await getUnansweredDailyQuestion();
-  if (!question) {
-    return null;
-  }
+function questionNotification(
+  id: string,
+  title: string,
+  question: DailyQuestionRecord,
+): Notification {
+  return {
+    id,
+    title,
+    body: question.question,
+    android: {
+      channelId: ANDROID_CHANNEL_ID,
+      smallIcon: 'ic_launcher',
+      pressAction: { id: buildOpenActionId(question.id) },
+      actions: question.options.map((option, index) => ({
+        title: option,
+        pressAction: { id: buildAnswerActionId(question.id, index) },
+      })),
+    },
+    ios: {
+      categoryId: IOS_CATEGORY_ID,
+    },
+  };
+}
 
+async function registerIosCategory(
+  question: DailyQuestionRecord,
+): Promise<void> {
   await notifee.setNotificationCategories([
     {
       id: IOS_CATEGORY_ID,
@@ -101,6 +120,19 @@ export async function refreshDailyNotification(
       })),
     },
   ]);
+}
+
+export async function refreshDailyNotification(
+  hour = DEFAULT_HOUR,
+  minute = DEFAULT_MINUTE,
+): Promise<DailyQuestionRecord | null> {
+  await ensureQuestionsSeeded();
+  const question = await getUnansweredDailyQuestion();
+  if (!question) {
+    return null;
+  }
+
+  await registerIosCategory(question);
 
   await notifee.cancelTriggerNotifications([DAILY_NOTIFICATION_ID]);
 
@@ -111,26 +143,36 @@ export async function refreshDailyNotification(
   };
 
   await notifee.createTriggerNotification(
-    {
-      id: DAILY_NOTIFICATION_ID,
-      title: 'Daily grammar practice',
-      body: question.question,
-      android: {
-        channelId: ANDROID_CHANNEL_ID,
-        smallIcon: 'ic_launcher',
-        pressAction: { id: buildOpenActionId(question.id) },
-        actions: question.options.map((option, index) => ({
-          title: option,
-          pressAction: { id: buildAnswerActionId(question.id, index) },
-        })),
-      },
-      ios: {
-        categoryId: IOS_CATEGORY_ID,
-      },
-    },
+    questionNotification(DAILY_NOTIFICATION_ID, 'Daily grammar practice', question),
     trigger,
   );
 
+  return question;
+}
+
+export function buildTestNotification(
+  question: DailyQuestionRecord,
+): Notification {
+  return questionNotification(
+    TEST_NOTIFICATION_ID,
+    'Daily grammar practice (test)',
+    question,
+  );
+}
+
+export async function sendTestQuestionNotification(): Promise<DailyQuestionRecord> {
+  const granted = await ensureNotificationPermission();
+  if (!granted) {
+    throw new Error('Notification permission was not granted.');
+  }
+  await ensureAndroidChannel();
+  await ensureQuestionsSeeded();
+  const question = await getUnansweredDailyQuestion();
+  if (!question) {
+    throw new Error('No unanswered question left to send.');
+  }
+  await registerIosCategory(question);
+  await notifee.displayNotification(buildTestNotification(question));
   return question;
 }
 

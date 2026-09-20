@@ -1,9 +1,12 @@
 import {
+  TEST_NOTIFICATION_ID,
   buildAnswerActionId,
   buildOpenActionId,
+  buildTestNotification,
   nextOccurrence,
   parsePressAction,
 } from '../dailyQuestion';
+import type { DailyQuestionRecord } from '../../data/questions';
 
 describe('press action ids', () => {
   it('round-trips answer ids', () => {
@@ -54,5 +57,39 @@ describe('nextOccurrence', () => {
     const scheduled = nextOccurrence(19, 0, now);
     const expected = new Date(2026, 8, 13, 19, 0, 0).getTime();
     expect(scheduled).toBe(expected);
+  });
+});
+
+const QUESTION: DailyQuestionRecord = {
+  id: 'q_present_perfect_since',
+  question: 'I ___ here since 2019.',
+  options: ['am living', 'have lived', 'live'],
+  answerIndex: 1,
+  explanation: '"Since" marks a starting point — present perfect.',
+  chosenIndex: null,
+  answeredAt: null,
+  viewedAt: null,
+};
+
+describe('buildTestNotification', () => {
+  it('uses the test notification id and the standard title suffix', () => {
+    const notification = buildTestNotification(QUESTION);
+    expect(notification.id).toBe(TEST_NOTIFICATION_ID);
+    expect(notification.title).toContain('(test)');
+    expect(notification.body).toBe(QUESTION.question);
+  });
+
+  it('reuses the same press action ids as the scheduled notification', () => {
+    const notification = buildTestNotification(QUESTION);
+    expect(notification.android?.pressAction?.id).toBe(
+      buildOpenActionId(QUESTION.id),
+    );
+    const actionIds = notification.android?.actions?.map(
+      action => action.pressAction?.id,
+    );
+    expect(actionIds).toEqual(
+      QUESTION.options.map((_, index) => buildAnswerActionId(QUESTION.id, index)),
+    );
+    expect(notification.ios?.categoryId).toBe('daily_question');
   });
 });

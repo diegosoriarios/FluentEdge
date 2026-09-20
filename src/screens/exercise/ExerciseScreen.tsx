@@ -3,9 +3,11 @@ import { Alert, Keyboard, StyleSheet, Text, TextInput, View } from 'react-native
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
 import { Button, Card } from '../../components/ui';
-import { colors, radius, spacing } from '../../theme';
+import { AnswerChoices } from '../../components/AnswerChoices';
+import { colors, fonts, radius, spacing } from '../../theme';
 import {
   getSession,
+  setChosenIndex,
   updateSessionEvaluation,
   updateSessionPrompt,
   updateSessionResponse,
@@ -21,7 +23,8 @@ import type { RootStackParamList, SessionSummary } from '../../navigation/types'
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Exercise'>;
 
-const MIN_WORDS = 10;
+const MIN_WORDS_PARAGRAPH = 10;
+const MIN_WORDS_SHORT = 3;
 const AUTOSAVE_DEBOUNCE_MS = 1500;
 
 export function ExerciseScreen({ route, navigation }: Props) {
@@ -40,6 +43,8 @@ export function ExerciseScreen({ route, navigation }: Props) {
   const [tokenCount, setTokenCount] = useState(0);
   const [regenerating, setRegenerating] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [checked, setChecked] = useState(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSavedRef = useRef('');
@@ -52,6 +57,14 @@ export function ExerciseScreen({ route, navigation }: Props) {
           setSession(next);
           setText(next?.response ?? '');
           lastSavedRef.current = next?.response ?? '';
+          if (
+            next?.type === 'multiple_choice' &&
+            next.exercise &&
+            next.chosenIndex != null
+          ) {
+            setSelected(next.chosenIndex);
+            setChecked(true);
+          }
         }
       })
       .finally(() => {
@@ -96,10 +109,22 @@ export function ExerciseScreen({ route, navigation }: Props) {
   }, [session, text]);
 
   const wordCount = countWords(text);
-  const canSubmit = wordCount >= MIN_WORDS && !evaluating && session != null;
+  const isMcq = session?.type === 'multiple_choice' && session.exercise != null;
+  const minWords = session?.type === 'short_answer' ? MIN_WORDS_SHORT : MIN_WORDS_PARAGRAPH;
+  const canSubmit = wordCount >= minWords && !evaluating && session != null;
+
+  const checkAnswer = () => {
+    if (!session?.exercise || selected == null || checked) {
+      return;
+    }
+    setChecked(true);
+    setChosenIndex(session.id, selected).catch(error => {
+      console.warn('Failed to save answer', error);
+    });
+  };
 
   const submit = async () => {
-    if (!session || !canSubmit) {
+    if (!session || !canSubmit || isMcq) {
       return;
     }
     Keyboard.dismiss();
@@ -127,6 +152,7 @@ export function ExerciseScreen({ route, navigation }: Props) {
           onStage: stage => setEvalStage(stage),
           onPartial: count => setTokenCount(count),
         },
+        session.type,
       );
       await updateSessionEvaluation(session.id, evaluation);
       const sessionsWithCurrent = [
@@ -217,10 +243,55 @@ export function ExerciseScreen({ route, navigation }: Props) {
     );
   }
 
+  if (isMcq && session.exercise) {
+    const exercise = session.exercise;
+    const correct = selected === exercise.answerIndex;
+    return (
+      <Screen title="Exercise" subtitle="Multiple choice">
+        <Card style={styles.promptCard}>
+          <Text style={styles.promptLabel}>Choose the correct answer</Text>
+          <Text style={styles.promptText}>{exercise.question}</Text>
+        </Card>
+        <AnswerChoices
+          options={exercise.options}
+          answerIndex={exercise.answerIndex}
+          selected={selected}
+          checked={checked}
+          onSelect={setSelected}
+        />
+        {checked ? (
+          <View style={styles.mcqFooter}>
+            <Text style={correct ? styles.verdictOk : styles.verdictBad}>
+              {correct ? 'Correct!' : 'Not quite.'}
+            </Text>
+            <View style={styles.tipBox}>
+              <Text style={styles.tipText}>{exercise.explanation}</Text>
+            </View>
+            <Button
+              title="See feedback"
+              onPress={() =>
+                navigation.replace('Feedback', { sessionId: session.id })
+              }
+            />
+          </View>
+        ) : (
+          <Button
+            title="Check answer"
+            onPress={checkAnswer}
+            disabled={selected == null}
+            style={styles.submit}
+          />
+        )}
+      </Screen>
+    );
+  }
+
   return (
     <Screen title="Exercise" scroll={false} avoidKeyboard>
       <Card style={styles.promptCard}>
-        <Text style={styles.promptLabel}>Writing prompt</Text>
+        <Text style={styles.promptLabel}>
+          {session.type === 'short_answer' ? 'Question' : 'Writing prompt'}
+        </Text>
         <Text style={styles.promptText}>{session.prompt}</Text>
         <Button
           title={regenerating ? 'New prompt…' : 'New prompt'}
@@ -234,7 +305,11 @@ export function ExerciseScreen({ route, navigation }: Props) {
       <TextInput
         value={text}
         onChangeText={onChangeText}
-        placeholder="Write your response here…"
+        placeholder={
+          session.type === 'short_answer'
+            ? 'Answer in 1-3 sentences…'
+            : 'Write your response here…'
+        }
         placeholderTextColor={colors.subdued}
         multiline
         textAlignVertical="top"
@@ -247,8 +322,8 @@ export function ExerciseScreen({ route, navigation }: Props) {
         onBlur={() => setInputFocused(false)}
       />
       <View style={styles.footer}>
-        <Text style={wordCount >= MIN_WORDS ? styles.countOk : styles.countLow}>
-          {wordCount} words (minimum {MIN_WORDS})
+        <Text style={wordCount >= minWords ? styles.countOk : styles.countLow}>
+          {wordCount} words (minimum {minWords})
         </Text>
         {submitError ? (
           <View style={styles.errorWrap}>
@@ -334,6 +409,32 @@ const styles = StyleSheet.create({
   },
   regenerateButton: {
     marginTop: spacing.xs,
+  },
+  mcqFooter: {
+    marginTop: spacing.md,
+    gap: spacing.md,
+  },
+  verdictOk: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.success,
+    fontFamily: fonts.bold,
+  },
+  verdictBad: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.danger,
+    fontFamily: fonts.bold,
+  },
+  tipBox: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.sm,
+    padding: spacing.sm + 2,
+  },
+  tipText: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
   },
   errorText: {
     fontSize: 14,

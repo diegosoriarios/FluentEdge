@@ -40,12 +40,24 @@ export type Evaluation = {
   strengths: string;
 };
 
+export type ExerciseType = 'multiple_choice' | 'short_answer' | 'paragraph';
+
+export type MultipleChoiceExercise = {
+  question: string;
+  options: string[];
+  answerIndex: number;
+  explanation: string;
+};
+
 export type SessionSummary = {
   id: string;
   createdAt: number;
   prompt: string;
   response: string;
   evaluation: Evaluation | null;
+  type: ExerciseType;
+  exercise: MultipleChoiceExercise | null;
+  chosenIndex: number | null;
 };
 
 export type RootStackParamList = {

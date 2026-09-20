@@ -59,6 +59,12 @@ export function RootNavigator() {
         const action = parsePressAction(initial?.pressAction?.id);
         if (action?.kind === 'answer') {
           await recordDailyAnswer(action.questionId, action.index);
+          const notificationId = initial?.notification?.id;
+          if (notificationId) {
+            await notifee
+              .cancelDisplayedNotification(notificationId)
+              .catch(() => {});
+          }
           openLesson(action.questionId);
         } else if (action?.kind === 'open') {
           openLesson(action.questionId);
@@ -89,6 +95,10 @@ export function RootNavigator() {
         recordDailyAnswer(action.questionId, action.index).catch(error => {
           console.warn('Failed to record answer', error);
         });
+        const notificationId = event.detail.notification?.id;
+        if (notificationId) {
+          notifee.cancelDisplayedNotification(notificationId).catch(() => {});
+        }
         openLesson(action.questionId);
       } else if (action?.kind === 'open') {
         openLesson(action.questionId);

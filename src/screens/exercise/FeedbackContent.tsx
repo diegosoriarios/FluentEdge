@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card, Chip, SectionLabel } from '../../components/ui';
-import { colors, radius, spacing } from '../../theme';
+import { AnswerChoices } from '../../components/AnswerChoices';
+import { colors, fonts, radius, spacing } from '../../theme';
 import type { SessionSummary } from '../../navigation/types';
 
 type Props = {
@@ -21,6 +22,10 @@ export function FeedbackContent({ session, readOnly = false }: Props) {
   const [tab, setTab] = useState<Tab>('corrections');
   const [expanded, setExpanded] = useState<number | null>(null);
   const evaluation = session.evaluation;
+
+  if (session.type === 'multiple_choice') {
+    return <McqFeedback session={session} />;
+  }
 
   if (!evaluation) {
     return (
@@ -122,6 +127,40 @@ export function FeedbackContent({ session, readOnly = false }: Props) {
   );
 }
 
+function McqFeedback({ session }: { session: SessionSummary }) {
+  const exercise = session.exercise;
+  if (!exercise) {
+    return (
+      <Card>
+        <Text style={styles.muted}>Exercise data missing for this session.</Text>
+      </Card>
+    );
+  }
+  const correct = session.chosenIndex === exercise.answerIndex;
+  return (
+    <View style={styles.container}>
+      <Card>
+        <SectionLabel>Question</SectionLabel>
+        <Text style={styles.mcqQuestion}>{exercise.question}</Text>
+      </Card>
+      <AnswerChoices
+        options={exercise.options}
+        answerIndex={exercise.answerIndex}
+        selected={session.chosenIndex}
+        checked
+      />
+      <Card style={styles.mcqResult}>
+        <Text style={correct ? styles.mcqVerdictOk : styles.mcqVerdictBad}>
+          {correct ? 'Correct!' : 'Not quite.'}
+        </Text>
+        <View style={styles.tipBox}>
+          <Text style={styles.tipText}>{exercise.explanation}</Text>
+        </View>
+      </Card>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     gap: spacing.md,
@@ -213,5 +252,25 @@ const styles = StyleSheet.create({
   muted: {
     fontSize: 14,
     color: colors.textMuted,
+  },
+  mcqQuestion: {
+    fontSize: 15,
+    color: colors.text,
+    lineHeight: 22,
+  },
+  mcqResult: {
+    gap: spacing.sm,
+  },
+  mcqVerdictOk: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.success,
+    fontFamily: fonts.bold,
+  },
+  mcqVerdictBad: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.danger,
+    fontFamily: fonts.bold,
   },
 });

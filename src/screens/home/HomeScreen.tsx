@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -13,7 +13,9 @@ import { useSessionStats, useWeakSpots } from '../../hooks/useSessionData';
 import { GOAL_LABELS } from '../../data/prompts';
 import { getPromptForProfile } from '../../data/prompts';
 import { insertSession } from '../../data';
+import { createTypeRotation } from '../../utils/exercises';
 import { createId } from '../../utils/id';
+import type { GeneratedExercise } from '../../ai/tutor';
 import type { MainTabParamList, RootStackParamList } from '../../navigation/types';
 
 type Props = CompositeScreenProps<
@@ -23,11 +25,12 @@ type Props = CompositeScreenProps<
 
 export function HomeScreen({ navigation }: Props) {
   const { profile } = useProfile();
-  const { modelState, generatePrompt } = useModel();
+  const { modelState, generateExercise } = useModel();
   const { stats, reload: reloadStats } = useSessionStats();
   const { summary: weakSpotsSummary, topErrorTypes, reload: reloadWeakSpots } =
     useWeakSpots();
   const [generating, setGenerating] = useState(false);
+  const rotationRef = useRef(createTypeRotation());
 
   useFocusEffect(
     useCallback(() => {
@@ -43,15 +46,25 @@ export function HomeScreen({ navigation }: Props) {
       return;
     }
     setGenerating(true);
+    const sessionId = createId('s_');
     try {
-      let promptText: string;
+      let generated: GeneratedExercise;
       try {
-        promptText = await generatePrompt(profile, weakSpotsSummary);
+        const type = rotationRef.current();
+        generated = await generateExercise(profile, type, weakSpotsSummary);
       } catch {
-        promptText = getPromptForProfile(profile);
+        generated = {
+          type: 'paragraph',
+          prompt: getPromptForProfile(profile),
+          exercise: null,
+        };
       }
-      const sessionId = createId('s_');
-      await insertSession(sessionId, promptText);
+      await insertSession(
+        sessionId,
+        generated.prompt,
+        generated.type,
+        generated.exercise,
+      );
       navigation.navigate('Exercise', { sessionId });
     } finally {
       setGenerating(false);

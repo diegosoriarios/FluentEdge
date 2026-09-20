@@ -45,7 +45,13 @@ export function FeedbackScreen({ route, navigation }: Props) {
   }
 
   return (
-    <Screen title="Feedback" subtitle="Review your corrections">
+    <Screen
+      title="Feedback"
+      subtitle={
+        session.type === 'multiple_choice'
+          ? 'Review your answer'
+          : 'Review your corrections'
+      }>
       <FeedbackContent session={session} />
       <Button
         title="Done"

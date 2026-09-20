@@ -1,5 +1,10 @@
 import { getDb } from './db';
-import type { Evaluation, SessionSummary } from '../navigation/types';
+import type {
+  Evaluation,
+  ExerciseType,
+  MultipleChoiceExercise,
+  SessionSummary,
+} from '../navigation/types';
 
 type SessionRow = {
   id: string;
@@ -7,7 +12,21 @@ type SessionRow = {
   prompt: string;
   response: string;
   evaluation_json: string | null;
+  type?: string | null;
+  exercise_json?: string | null;
+  chosen_index?: number | null;
 };
+
+function parseExercise(json: string | null): MultipleChoiceExercise | null {
+  if (!json) {
+    return null;
+  }
+  try {
+    return JSON.parse(json) as MultipleChoiceExercise;
+  } catch {
+    return null;
+  }
+}
 
 function rowToSession(row: SessionRow): SessionSummary {
   return {
@@ -18,18 +37,34 @@ function rowToSession(row: SessionRow): SessionSummary {
     evaluation: row.evaluation_json
       ? (JSON.parse(row.evaluation_json) as Evaluation)
       : null,
+    type: (row.type ?? 'paragraph') as ExerciseType,
+    exercise: parseExercise(row.exercise_json ?? null),
+    chosenIndex: row.chosen_index ?? null,
   };
 }
 
 export async function insertSession(
   id: string,
   prompt: string,
+  type: ExerciseType = 'paragraph',
+  exercise: MultipleChoiceExercise | null = null,
 ): Promise<void> {
   const db = await getDb();
   await db.executeSql(
-    'INSERT INTO sessions (id, created_at, prompt, response, evaluation_json) VALUES (?, ?, ?, ?, NULL)',
-    [id, Date.now(), prompt, ''],
+    'INSERT INTO sessions (id, created_at, prompt, response, evaluation_json, type, exercise_json, chosen_index) VALUES (?, ?, ?, ?, NULL, ?, ?, NULL)',
+    [id, Date.now(), prompt, '', type, exercise ? JSON.stringify(exercise) : null],
   );
+}
+
+export async function setChosenIndex(
+  id: string,
+  index: number,
+): Promise<void> {
+  const db = await getDb();
+  await db.executeSql('UPDATE sessions SET chosen_index = ? WHERE id = ?', [
+    index,
+    id,
+  ]);
 }
 
 export async function updateSessionResponse(
@@ -63,6 +98,11 @@ export async function updateSessionEvaluation(
     JSON.stringify(evaluation),
     id,
   ]);
+}
+
+export async function deleteSession(id: string): Promise<void> {
+  const db = await getDb();
+  await db.executeSql('DELETE FROM sessions WHERE id = ?', [id]);
 }
 
 export async function getSession(id: string): Promise<SessionSummary | null> {
@@ -120,7 +160,7 @@ export async function getRecentSessions(
 ): Promise<SessionSummary[]> {
   const db = await getDb();
   const [result] = await db.executeSql(
-    'SELECT id, created_at, response, evaluation_json FROM sessions ORDER BY created_at DESC LIMIT ?',
+    'SELECT id, created_at, response, evaluation_json, type, exercise_json, chosen_index FROM sessions ORDER BY created_at DESC LIMIT ?',
     [limit],
   );
   const rows: SessionSummary[] = [];
@@ -134,6 +174,9 @@ export async function getRecentSessions(
       evaluation: row.evaluation_json
         ? (JSON.parse(row.evaluation_json) as Evaluation)
         : null,
+      type: (row.type ?? 'paragraph') as ExerciseType,
+      exercise: parseExercise(row.exercise_json ?? null),
+      chosenIndex: row.chosen_index ?? null,
     });
   }
   return rows;

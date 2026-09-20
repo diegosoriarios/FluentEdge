@@ -15,12 +15,14 @@ import type { ModelInfo } from '../../services/modelManager';
 import {
   clearDebugLogs,
   getDebugLogText,
+  logDebug,
 } from '../../services/debugLog';
 import { formatBytes } from '../../utils/format';
 import {
   DEFAULT_HOUR,
   disableDailyNotifications,
   enableDailyNotifications,
+  sendTestQuestionNotification,
 } from '../../notifications/dailyQuestion';
 import type { FocusArea } from '../../navigation/types';
 
@@ -54,6 +56,10 @@ export function SettingsScreen() {
   } = useModel();
   const { reset: resetDraft } = useOnboarding();
   const [togglingNotifications, setTogglingNotifications] = useState(false);
+  const [sendingTestNotification, setSendingTestNotification] = useState(false);
+  const [testNotificationStatus, setTestNotificationStatus] = useState<
+    string | null
+  >(null);
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const [debugLogText, setDebugLogText] = useState('');
 
@@ -138,6 +144,31 @@ export function SettingsScreen() {
   const handleClearLogs = () => {
     clearDebugLogs();
     setDebugLogText('');
+  };
+
+  const handleSendTestNotification = async () => {
+    if (sendingTestNotification) {
+      return;
+    }
+    setSendingTestNotification(true);
+    setTestNotificationStatus(null);
+    try {
+      const question = await sendTestQuestionNotification();
+      logDebug(
+        'app',
+        `test question notification sent (${question.id})`,
+      );
+      setTestNotificationStatus(
+        'Sent. Answer it from the notification itself.',
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Could not send notification.';
+      logDebug('app', `test question notification failed: ${message}`);
+      setTestNotificationStatus(message);
+    } finally {
+      setSendingTestNotification(false);
+    }
   };
 
   const toggleNotifications = async (enabled: boolean) => {
@@ -369,6 +400,24 @@ export function SettingsScreen() {
       </Card>
 
       <Card style={styles.card}>
+        <SectionLabel>Debug</SectionLabel>
+        <Button
+          title={
+            sendingTestNotification
+              ? 'Sending…'
+              : 'Send test question notification'
+          }
+          variant="secondary"
+          onPress={handleSendTestNotification}
+          disabled={sendingTestNotification}
+          loading={sendingTestNotification}
+        />
+        {testNotificationStatus ? (
+          <Text style={styles.debugStatus}>{testNotificationStatus}</Text>
+        ) : null}
+      </Card>
+
+      <Card style={styles.card}>
         <SectionLabel>Download diagnostics</SectionLabel>
         <ScrollView style={styles.debugLogBox} nestedScrollEnabled>
           <Text style={styles.debugLogText} selectable>
@@ -487,5 +536,9 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     color: colors.textMuted,
     fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
+  },
+  debugStatus: {
+    fontSize: 13,
+    color: colors.textMuted,
   },
 });

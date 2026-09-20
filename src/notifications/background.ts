@@ -12,6 +12,10 @@ notifee.onBackgroundEvent(async ({ type, detail }) => {
   }
   try {
     await recordDailyAnswer(action.questionId, action.index);
+    const notificationId = detail.notification?.id;
+    if (notificationId) {
+      await notifee.cancelDisplayedNotification(notificationId);
+    }
   } catch (error) {
     console.warn('Failed to record background answer', error);
   }

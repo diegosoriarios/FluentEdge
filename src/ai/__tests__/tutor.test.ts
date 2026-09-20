@@ -1,12 +1,15 @@
 import type { Profile } from '../../navigation/types';
 import {
+  buildExerciseGenSystemPrompt,
   buildGradingSystemPrompt,
   buildPromptGenSystemPrompt,
   cleanGeneratedPrompt,
   filterPhantomCorrections,
   isEvaluation,
   isLowQualityPrompt,
+  isMultipleChoice,
   parseEvaluation,
+  parseMultipleChoice,
   sanitizeForGrading,
 } from '../tutor';
 
@@ -393,5 +396,137 @@ describe('parseEvaluation', () => {
 
   it('throws on schema-violating JSON', () => {
     expect(() => parseEvaluation('{"has_errors": true}')).toThrow();
+  });
+});
+
+const VALID_MCQ = {
+  question: 'Which sentence is correct?',
+  options: ['She like tea.', 'She likes tea.', 'She liking tea.'],
+  answer_index: 1,
+  explanation: 'Third person singular takes -s in present simple.',
+};
+
+describe('parseMultipleChoice', () => {
+  it('parses plain JSON and maps answer_index to answerIndex', () => {
+    const parsed = parseMultipleChoice(JSON.stringify(VALID_MCQ));
+    expect(parsed.answerIndex).toBe(1);
+    expect(parsed.options).toHaveLength(3);
+    expect(parsed.question).toContain('correct');
+  });
+
+  it('parses fenced JSON with prose around it', () => {
+    const noisy =
+      'Here is your question:\n```json\n' +
+      JSON.stringify(VALID_MCQ) +
+      '\n```';
+    expect(parseMultipleChoice(noisy).answerIndex).toBe(1);
+  });
+
+  it('rejects the wrong number of options', () => {
+    expect(() =>
+      parseMultipleChoice(
+        JSON.stringify({ ...VALID_MCQ, options: ['a', 'b'] }),
+      ),
+    ).toThrow();
+  });
+
+  it('rejects duplicate options', () => {
+    expect(() =>
+      parseMultipleChoice(
+        JSON.stringify({
+          ...VALID_MCQ,
+          options: ['She like tea.', 'She like tea.', 'She liking tea.'],
+        }),
+      ),
+    ).toThrow();
+  });
+
+  it('rejects an out-of-range answer index', () => {
+    expect(() =>
+      parseMultipleChoice(JSON.stringify({ ...VALID_MCQ, answer_index: 3 })),
+    ).toThrow();
+  });
+
+  it('rejects a missing explanation', () => {
+    expect(() =>
+      parseMultipleChoice(JSON.stringify({ ...VALID_MCQ, explanation: '  ' })),
+    ).toThrow();
+  });
+
+  it('rejects an empty question', () => {
+    expect(() =>
+      parseMultipleChoice(JSON.stringify({ ...VALID_MCQ, question: '' })),
+    ).toThrow();
+  });
+
+  it('rejects non-JSON output', () => {
+    expect(() => parseMultipleChoice('no json here')).toThrow();
+  });
+});
+
+describe('isMultipleChoice', () => {
+  it('accepts a valid exercise object', () => {
+    expect(
+      isMultipleChoice({
+        question: 'q',
+        options: ['a', 'b', 'c'],
+        answerIndex: 0,
+        explanation: 'e',
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects non-objects and bad fields', () => {
+    expect(isMultipleChoice(null)).toBe(false);
+    expect(isMultipleChoice('x')).toBe(false);
+    expect(
+      isMultipleChoice({
+        question: 'q',
+        options: ['a', 'b', 'c'],
+        answerIndex: 7,
+        explanation: 'e',
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('buildExerciseGenSystemPrompt', () => {
+  it('delegates paragraph to the open-ended prompt builder', () => {
+    expect(buildExerciseGenSystemPrompt('paragraph', PROFILE, '')).toBe(
+      buildPromptGenSystemPrompt(PROFILE, ''),
+    );
+  });
+
+  it('asks for 1-3 sentence answers for short answer', () => {
+    const prompt = buildExerciseGenSystemPrompt('short_answer', PROFILE, '');
+    expect(prompt).toContain('1-3 sentences');
+    expect(prompt).toContain(
+      'Never write fill-in-the-blank, multiple-choice',
+    );
+    expect(prompt).toContain('Respond ONLY with the question text.');
+  });
+
+  it('asks for exactly three options for multiple choice', () => {
+    const prompt = buildExerciseGenSystemPrompt('multiple_choice', PROFILE, '');
+    expect(prompt).toContain('exactly 3 options');
+    expect(prompt).toContain('Exactly one option is correct');
+    expect(prompt).toContain('Respond ONLY with JSON matching the given schema.');
+  });
+});
+
+describe('buildGradingSystemPrompt short-answer variant', () => {
+  it('grades brief answers to the question', () => {
+    const prompt = buildGradingSystemPrompt(PROFILE, '', 'short_answer');
+    expect(prompt).toContain('1-3 sentences');
+    expect(prompt).toContain('answers the question correctly');
+    expect(prompt).toContain(
+      'corrected version of the response, same meaning and length',
+    );
+  });
+
+  it('keeps the full-rewrite rule for paragraphs', () => {
+    const prompt = buildGradingSystemPrompt(PROFILE, '', 'paragraph');
+    expect(prompt).toContain('full rewrite, same meaning');
+    expect(prompt).not.toContain('answers the question correctly');
   });
 });

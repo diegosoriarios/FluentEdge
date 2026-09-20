@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { StyleSheet, Text } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '../../components/Screen';
-import { Button, Card } from '../../components/ui';
+import { Button, Card, Chip } from '../../components/ui';
 import { colors, spacing } from '../../theme';
-import { getSession } from '../../data';
+import { deleteSession, getSession } from '../../data';
+import { exerciseTypeLabel } from '../../utils/exercises';
 import { FeedbackContent } from '../exercise/FeedbackContent';
 import { formatDateTime } from '../../utils/format';
 import type { RootStackParamList, SessionSummary } from '../../navigation/types';
@@ -49,8 +50,32 @@ export function SessionDetailScreen({ route, navigation }: Props) {
   const unanswered = session.evaluation == null && session.response.trim().length === 0;
   const unevaluated = session.evaluation == null && !unanswered;
 
+  const confirmDelete = () => {
+    Alert.alert(
+      'Delete session?',
+      'This removes the exercise, your response and its feedback.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteSession(session.id)
+              .then(() => navigation.goBack())
+              .catch(error => {
+                console.warn('Failed to delete session', error);
+              });
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <Screen title="Session" subtitle={formatDateTime(session.createdAt)}>
+      <View style={styles.metaRow}>
+        <Chip label={exerciseTypeLabel(session.type)} />
+      </View>
       <Card style={{ marginBottom: spacing.md }}>
         <Text style={styles.promptLabel}>Prompt</Text>
         <Text style={styles.promptText}>{session.prompt}</Text>
@@ -82,6 +107,9 @@ export function SessionDetailScreen({ route, navigation }: Props) {
       ) : (
         <FeedbackContent session={session} readOnly />
       )}
+      <View style={styles.deleteRow}>
+        <Button title="Delete session" variant="danger" onPress={confirmDelete} />
+      </View>
     </Screen>
   );
 }
@@ -106,5 +134,12 @@ const styles = StyleSheet.create({
   pendingText: {
     fontSize: 15,
     color: colors.textMuted,
+  },
+  deleteRow: {
+    marginTop: spacing.lg,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    marginBottom: spacing.sm,
   },
 });

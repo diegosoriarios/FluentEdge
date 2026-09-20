@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -8,8 +8,14 @@ import { Screen } from '../../components/Screen';
 import { Card, Chip } from '../../components/ui';
 import { colors, spacing } from '../../theme';
 import { usePaginatedSessions } from '../../hooks/useSessionData';
+import { deleteSession } from '../../data';
+import { exerciseTypeLabel } from '../../utils/exercises';
 import { formatDateTime } from '../../utils/format';
-import type { MainTabParamList, RootStackParamList } from '../../navigation/types';
+import type {
+  MainTabParamList,
+  RootStackParamList,
+  SessionSummary,
+} from '../../navigation/types';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Progress'>,
@@ -45,6 +51,27 @@ export function ProgressScreen({ navigation }: Props) {
     session => Date.now() - session.createdAt <= RANGE_MS[range],
   );
 
+  const confirmDelete = (session: SessionSummary) => {
+    Alert.alert(
+      'Delete session?',
+      'This removes the exercise, your response and its feedback.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteSession(session.id)
+              .then(reload)
+              .catch(error => {
+                console.warn('Failed to delete session', error);
+              });
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <Screen title="Progress" subtitle={`${sessions.length} shown${hasMore ? ' · more available' : ''}`}>
       <View style={styles.rangeRow}>
@@ -66,13 +93,15 @@ export function ProgressScreen({ navigation }: Props) {
             <Pressable
               onPress={() =>
                 navigation.navigate('SessionDetail', { sessionId: item.id })
-              }>
+              }
+              onLongPress={() => confirmDelete(item)}>
               <Card style={styles.sessionCard}>
                 <Text style={styles.date}>{formatDateTime(item.createdAt)}</Text>
                 <Text style={styles.prompt} numberOfLines={2}>
                   {item.prompt}
                 </Text>
                 <View style={styles.metaRow}>
+                  <Chip label={exerciseTypeLabel(item.type)} />
                   <Chip
                     label={
                       item.evaluation
@@ -134,6 +163,8 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
   },
   empty: {
     fontSize: 15,

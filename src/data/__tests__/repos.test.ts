@@ -5,9 +5,13 @@ import {
 } from '../../test/sqlMock';
 import {
   computeStreakDays,
+  deleteSession,
   getRecentErrorTypeLists,
+  getSession,
   getSessionStats,
+  insertSession,
   listSessions,
+  setChosenIndex,
   updateSessionPrompt,
 } from '../index';
 
@@ -62,6 +66,94 @@ describe('sessionsRepo', () => {
     await updateSessionPrompt('s1', 'new prompt');
     const call = sqlCalls().find(([sql]) => sql.includes('SET prompt = ?'));
     expect(call?.[1]).toEqual(['new prompt', 's1']);
+  });
+
+  it('deletes a session by id', async () => {
+    await deleteSession('s1');
+    const call = sqlCalls().find(([sql]) =>
+      sql.startsWith('DELETE FROM sessions'),
+    );
+    expect(call?.[0]).toBe('DELETE FROM sessions WHERE id = ?');
+    expect(call?.[1]).toEqual(['s1']);
+  });
+
+  it('inserts sessions with type and exercise payload', async () => {
+    const exercise = {
+      question: 'Pick the correct form.',
+      options: ['I go', 'I went', 'I gone'],
+      answerIndex: 1,
+      explanation: 'Past simple for a finished action.',
+    };
+    await insertSession(
+      's9',
+      'Describe your routine.',
+      'multiple_choice',
+      exercise,
+    );
+    const call = sqlCalls().find(([sql]) => sql.startsWith('INSERT INTO sessions'));
+    expect(call?.[1]).toEqual([
+      's9',
+      expect.any(Number),
+      'Describe your routine.',
+      '',
+      'multiple_choice',
+      JSON.stringify(exercise),
+    ]);
+  });
+
+  it('defaults insertSession to paragraph type', async () => {
+    await insertSession('s10', 'Write about your day.');
+    const call = sqlCalls().find(([sql]) => sql.startsWith('INSERT INTO sessions'));
+    expect(call?.[1]).toEqual([
+      's10',
+      expect.any(Number),
+      'Write about your day.',
+      '',
+      'paragraph',
+      null,
+    ]);
+  });
+
+  it('maps type, exercise, and chosenIndex when reading sessions', async () => {
+    mockSqlResponse('SELECT * FROM sessions WHERE id = ?', [
+      {
+        id: 's9',
+        created_at: 123,
+        prompt: 'q',
+        response: 'a',
+        evaluation_json: null,
+        type: 'multiple_choice',
+        exercise_json: JSON.stringify({
+          question: 'q',
+          options: ['a', 'b', 'c'],
+          answerIndex: 2,
+          explanation: 'e',
+        }),
+        chosen_index: 1,
+      },
+    ]);
+    const session = await getSession('s9');
+    expect(session?.type).toBe('multiple_choice');
+    expect(session?.exercise?.answerIndex).toBe(2);
+    expect(session?.chosenIndex).toBe(1);
+  });
+
+  it('defaults legacy rows to paragraph type', async () => {
+    mockSqlResponse('SELECT * FROM sessions WHERE id = ?', [
+      { id: 's1', created_at: 1, prompt: 'p', response: 'r', evaluation_json: null },
+    ]);
+    const session = await getSession('s1');
+    expect(session?.type).toBe('paragraph');
+    expect(session?.exercise).toBeNull();
+    expect(session?.chosenIndex).toBeNull();
+  });
+
+  it('sets chosen index on a session', async () => {
+    await setChosenIndex('s9', 2);
+    const call = sqlCalls().find(([sql]) =>
+      sql.includes('SET chosen_index = ?'),
+    );
+    expect(call?.[1]).toEqual([2, 's9']);
   });
 
   it('aggregates stats and computes streak from distinct days', async () => {

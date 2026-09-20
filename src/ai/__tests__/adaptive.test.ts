@@ -29,6 +29,9 @@ function makeSession(
       improved_paragraph: '',
       strengths: '',
     },
+    type: 'paragraph',
+    exercise: null,
+    chosenIndex: null,
   };
 }
 

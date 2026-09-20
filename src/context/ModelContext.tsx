@@ -37,11 +37,15 @@ import {
 import type { DeviceCapability } from '../services/deviceCapabilities';
 import {
   evaluateWriting,
-  generateWritingPrompt,
+  generateExercise as generateExerciseTutor,
   releaseModel as releaseTutorModel,
 } from '../ai/tutor';
-import type { EvaluateCallbacks } from '../ai/tutor';
-import type { Evaluation, Profile } from '../navigation/types';
+import type { EvaluateCallbacks, GeneratedExercise } from '../ai/tutor';
+import type {
+  Evaluation,
+  ExerciseType,
+  Profile,
+} from '../navigation/types';
 import { ensureNotificationPermission } from '../notifications/dailyQuestion';
 import { logDebug } from '../services/debugLog';
 
@@ -72,8 +76,14 @@ type ModelContextValue = {
     response: string,
     weakSpotsSummary?: string,
     callbacks?: EvaluateCallbacks,
+    type?: ExerciseType,
   ) => Promise<Evaluation>;
   generatePrompt: (profile: Profile, weakSpotsSummary?: string) => Promise<string>;
+  generateExercise: (
+    profile: Profile,
+    type: ExerciseType,
+    weakSpotsSummary?: string,
+  ) => Promise<GeneratedExercise>;
 };
 
 const ModelContext = createContext<ModelContextValue | null>(null);
@@ -274,6 +284,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       response: string,
       weakSpotsSummary = '',
       callbacks?: EvaluateCallbacks,
+      type: ExerciseType = 'paragraph',
     ) => {
       inFlightRef.current += 1;
       try {
@@ -283,6 +294,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
           response,
           weakSpotsSummary,
           callbacks,
+          type,
         );
       } finally {
         inFlightRef.current -= 1;
@@ -295,7 +307,24 @@ export function ModelProvider({ children }: { children: ReactNode }) {
     async (profile: Profile, weakSpotsSummary = '') => {
       inFlightRef.current += 1;
       try {
-        return await generateWritingPrompt(profile, weakSpotsSummary);
+        const generated = await generateExerciseTutor(
+          'paragraph',
+          profile,
+          weakSpotsSummary,
+        );
+        return generated.prompt;
+      } finally {
+        inFlightRef.current -= 1;
+      }
+    },
+    [],
+  );
+
+  const generateExercise = useCallback(
+    async (profile: Profile, type: ExerciseType, weakSpotsSummary = '') => {
+      inFlightRef.current += 1;
+      try {
+        return await generateExerciseTutor(type, profile, weakSpotsSummary);
       } finally {
         inFlightRef.current -= 1;
       }
@@ -351,6 +380,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       deleteModel: deleteModelImpl,
       evaluate,
       generatePrompt,
+      generateExercise,
     }),
     [
       modelState,
@@ -363,11 +393,12 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       pauseDownload,
       resumeDownload,
       cancelDownload,
-      deleteModelImpl,
-      evaluate,
-      generatePrompt,
-    ],
-  );
+        deleteModelImpl,
+        evaluate,
+        generatePrompt,
+        generateExercise,
+      ],
+    );
 
   return <ModelContext.Provider value={value}>{children}</ModelContext.Provider>;
 }

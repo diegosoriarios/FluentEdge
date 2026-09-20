@@ -10,6 +10,11 @@ const MIGRATIONS: string[][] = [
     'CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL, prompt TEXT NOT NULL, response TEXT NOT NULL, evaluation_json TEXT)',
     'CREATE TABLE IF NOT EXISTS daily_questions (id TEXT PRIMARY KEY, question TEXT NOT NULL, options_json TEXT NOT NULL, answer_index INTEGER NOT NULL, explanation TEXT NOT NULL, chosen_index INTEGER, answered_at INTEGER, viewed_at INTEGER)',
   ],
+  [
+    "ALTER TABLE sessions ADD COLUMN type TEXT NOT NULL DEFAULT 'paragraph'",
+    'ALTER TABLE sessions ADD COLUMN exercise_json TEXT',
+    'ALTER TABLE sessions ADD COLUMN chosen_index INTEGER',
+  ],
 ];
 
 export function getDb(): Promise<SQLite.SQLiteDatabase> {
