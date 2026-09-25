@@ -79,7 +79,7 @@ async function ensureAndroidChannel(): Promise<void> {
   await notifee.createChannel({
     id: ANDROID_CHANNEL_ID,
     name: 'Daily practice',
-    importance: AndroidImportance.DEFAULT,
+    importance: AndroidImportance.HIGH,
   });
 }
 
@@ -94,7 +94,7 @@ function questionNotification(
     body: question.question,
     android: {
       channelId: ANDROID_CHANNEL_ID,
-      smallIcon: 'ic_launcher',
+      smallIcon: 'ic_notification',
       pressAction: { id: buildOpenActionId(question.id) },
       actions: question.options.map((option, index) => ({
         title: option,
@@ -133,7 +133,7 @@ export async function refreshDailyNotification(
   }
 
   await registerIosCategory(question);
-
+  await ensureAndroidChannel();
   await notifee.cancelTriggerNotifications([DAILY_NOTIFICATION_ID]);
 
   const trigger: TimestampTrigger = {

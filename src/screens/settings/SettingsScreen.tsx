@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, Share, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, AppState, Platform, ScrollView, Share, StyleSheet, Switch, Text, View } from 'react-native';
+import notifee from '@notifee/react-native';
 import { Screen } from '../../components/Screen';
 import { Button, Card, Chip, ProgressBar, SectionLabel } from '../../components/ui';
 import { colors, spacing } from '../../theme';
@@ -62,12 +63,44 @@ export function SettingsScreen() {
   >(null);
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const [debugLogText, setDebugLogText] = useState('');
+  const [batteryOptimization, setBatteryOptimization] = useState<
+    boolean | null
+  >(null);
+  const [powerManagerActivity, setPowerManagerActivity] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     const refresh = () => setDebugLogText(getDebugLogText());
     refresh();
     const interval = setInterval(refresh, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return undefined;
+    }
+    const refreshDiagnostics = () => {
+      Promise.all([
+        notifee.isBatteryOptimizationEnabled(),
+        notifee.getPowerManagerInfo(),
+      ])
+        .then(([battery, power]) => {
+          setBatteryOptimization(battery);
+          setPowerManagerActivity(power.activity ?? null);
+        })
+        .catch(error => {
+          console.warn('Failed to read notification diagnostics', error);
+        });
+    };
+    refreshDiagnostics();
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        refreshDiagnostics();
+      }
+    });
+    return () => subscription.remove();
   }, []);
 
   useEffect(() => {
@@ -186,6 +219,18 @@ export function SettingsScreen() {
     } finally {
       setTogglingNotifications(false);
     }
+  };
+
+  const openBatteryOptimizationSettings = () => {
+    notifee.openBatteryOptimizationSettings().catch(() => {});
+  };
+
+  const openPowerManagerSettings = () => {
+    notifee.openPowerManagerSettings().catch(() => {});
+  };
+
+  const openAlarmPermissionSettings = () => {
+    notifee.openAlarmPermissionSettings().catch(() => {});
   };
 
   return (
@@ -398,6 +443,58 @@ export function SettingsScreen() {
           />
         </View>
       </Card>
+
+      {Platform.OS === 'android' ? (
+        <Card style={styles.card}>
+          <SectionLabel>Notification diagnostics</SectionLabel>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Battery optimization</Text>
+            <Text
+              style={[
+                styles.rowValue,
+                batteryOptimization && { color: colors.danger },
+              ]}>
+              {batteryOptimization == null
+                ? 'Checking…'
+                : batteryOptimization
+                  ? 'Restricted'
+                  : 'OK'}
+            </Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Power manager</Text>
+            <Text style={styles.rowValue}>
+              {powerManagerActivity ?? 'Normal'}
+            </Text>
+          </View>
+          {batteryOptimization ? (
+            <Button
+              title="Allow unrestricted battery use"
+              variant="secondary"
+              onPress={openBatteryOptimizationSettings}
+              style={styles.action}
+            />
+          ) : null}
+          {powerManagerActivity ? (
+            <Button
+              title="Open power manager settings"
+              variant="secondary"
+              onPress={openPowerManagerSettings}
+              style={styles.action}
+            />
+          ) : null}
+          <Button
+            title="Open alarm & reminder settings"
+            variant="secondary"
+            onPress={openAlarmPermissionSettings}
+            style={styles.action}
+          />
+          <Text style={styles.muted}>
+            If reminders arrive late or not at all, allow exact alarms and
+            remove battery restrictions for FluentEdge.
+          </Text>
+        </Card>
+      ) : null}
 
       <Card style={styles.card}>
         <SectionLabel>Debug</SectionLabel>

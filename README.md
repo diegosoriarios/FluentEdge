@@ -1,5 +1,9 @@
 # FluentEdge — Planning Document (React Native)
 
+<p align="center">
+  <img src="icon.png" width="120" alt="FluentEdge" />
+</p>
+
 ## 1. Product Overview
 
 **Concept:** An offline, on-device AI-powered English writing/grammar tutor for people who already know English but want to improve writing, grammar, and style. The app generates open-ended writing prompts, evaluates user responses, and delivers targeted mini-lessons on mistakes.

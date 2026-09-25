@@ -9,6 +9,7 @@
     <!-- Splash / launch theme shown until React Native renders. -->
     <style name="SplashTheme" parent="AppTheme">
         <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
     </style>
 
 </resources>
