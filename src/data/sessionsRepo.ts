@@ -188,7 +188,7 @@ export type SessionStatsData = {
   streakDays: number;
 };
 
-function localDayKey(timestamp: number): string {
+export function localDayKey(timestamp: number): string {
   const date = new Date(timestamp);
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');

@@ -12,6 +12,9 @@ export type Profile = {
   completedAt: string | null;
   lastLevelAdjustAt?: number | null;
   notificationsEnabled?: boolean;
+  reminderEnabled?: boolean;
+  reminderHour?: number;
+  reminderMinute?: number;
   targetLanguage?: 'en' | 'es';
   explanationLanguage?: 'en' | 'es';
   modelVariant?: 'full' | 'small';

@@ -35,6 +35,10 @@ describe('press action ids', () => {
     expect(parsePressAction('answer|q|-1')).toBeNull();
     expect(parsePressAction('something|else')).toBeNull();
   });
+
+  it('recognizes the study reminder press action', () => {
+    expect(parsePressAction('open-study')).toEqual({ kind: 'study' });
+  });
 });
 
 describe('nextOccurrence', () => {

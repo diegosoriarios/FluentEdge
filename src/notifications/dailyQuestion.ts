@@ -7,11 +7,14 @@ import notifee, {
   TriggerType,
 } from '@notifee/react-native';
 import type { Notification } from '@notifee/react-native';
+import { Platform } from 'react-native';
 import {
   ensureQuestionsSeeded,
   getUnansweredDailyQuestion,
 } from '../data';
 import type { DailyQuestionRecord } from '../data/questions';
+import { logDebug } from '../services/debugLog';
+import { runScheduledExclusively, verifyTriggersRegistered } from './scheduler';
 
 export const DAILY_NOTIFICATION_ID = 'daily-practice';
 export const TEST_NOTIFICATION_ID = 'daily-practice-test';
@@ -19,10 +22,13 @@ export const ANDROID_CHANNEL_ID = 'daily-practice';
 export const IOS_CATEGORY_ID = 'daily_question';
 export const DEFAULT_HOUR = 19;
 export const DEFAULT_MINUTE = 0;
+export const LOG_TAG = 'notifications';
+export const STUDY_REMINDER_PRESS_ACTION_ID = 'open-study';
 
 export type PressActionPayload =
   | { kind: 'answer'; questionId: string; index: number }
-  | { kind: 'open'; questionId: string };
+  | { kind: 'open'; questionId: string }
+  | { kind: 'study' };
 
 export function buildAnswerActionId(
   questionId: string,
@@ -40,6 +46,9 @@ export function parsePressAction(
 ): PressActionPayload | null {
   if (!id) {
     return null;
+  }
+  if (id === STUDY_REMINDER_PRESS_ACTION_ID) {
+    return { kind: 'study' };
   }
   const parts = id.split('|');
   if (parts[0] === 'answer' && parts.length === 3) {
@@ -126,28 +135,41 @@ export async function refreshDailyNotification(
   hour = DEFAULT_HOUR,
   minute = DEFAULT_MINUTE,
 ): Promise<DailyQuestionRecord | null> {
-  await ensureQuestionsSeeded();
-  const question = await getUnansweredDailyQuestion();
-  if (!question) {
-    return null;
-  }
+  return runScheduledExclusively(async () => {
+    await ensureQuestionsSeeded();
+    const question = await getUnansweredDailyQuestion();
+    if (!question) {
+      logDebug(
+        LOG_TAG,
+        'no unanswered daily question available — nothing scheduled',
+      );
+      return null;
+    }
 
-  await registerIosCategory(question);
-  await ensureAndroidChannel();
-  await notifee.cancelTriggerNotifications([DAILY_NOTIFICATION_ID]);
+    await registerIosCategory(question);
+    await ensureAndroidChannel();
+    await notifee.cancelTriggerNotifications([DAILY_NOTIFICATION_ID]);
 
-  const trigger: TimestampTrigger = {
-    type: TriggerType.TIMESTAMP,
-    timestamp: nextOccurrence(hour, minute),
-    repeatFrequency: RepeatFrequency.DAILY,
-  };
+    const timestamp = nextOccurrence(hour, minute);
+    const trigger: TimestampTrigger = {
+      type: TriggerType.TIMESTAMP,
+      timestamp,
+      repeatFrequency: RepeatFrequency.DAILY,
+    };
 
-  await notifee.createTriggerNotification(
-    questionNotification(DAILY_NOTIFICATION_ID, 'Daily grammar practice', question),
-    trigger,
-  );
+    await notifee.createTriggerNotification(
+      questionNotification(DAILY_NOTIFICATION_ID, 'Daily grammar practice', question),
+      trigger,
+    );
+    logDebug(
+      LOG_TAG,
+      `daily question scheduled at ${new Date(timestamp).toISOString()} `
+        + `(repeats daily, question ${question.id})`,
+    );
+    await verifyTriggersRegistered(LOG_TAG);
 
-  return question;
+    return question;
+  });
 }
 
 export function buildTestNotification(
@@ -179,18 +201,35 @@ export async function sendTestQuestionNotification(): Promise<DailyQuestionRecor
 export async function enableDailyNotifications(): Promise<boolean> {
   const granted = await ensureNotificationPermission();
   if (!granted) {
+    logDebug(LOG_TAG, 'enable skipped: notification permission not granted');
     return false;
   }
   await ensureAndroidChannel();
   await refreshDailyNotification();
+  if (Platform.OS === 'android') {
+    try {
+      const batteryRestricted = await notifee.isBatteryOptimizationEnabled();
+      if (batteryRestricted) {
+        logDebug(
+          LOG_TAG,
+          'battery optimization is enabled — scheduled reminders may be '
+            + 'delayed or dropped on this device. Disable it via Settings > '
+            + 'Notification diagnostics.',
+        );
+      }
+    } catch (error) {
+      logDebug(LOG_TAG, 'battery optimization check failed', error);
+    }
+  }
   return true;
 }
 
 export async function disableDailyNotifications(): Promise<void> {
   try {
     await notifee.cancelTriggerNotifications([DAILY_NOTIFICATION_ID]);
+    logDebug(LOG_TAG, 'daily question notification cancelled');
   } catch (error) {
-    console.warn('Failed to cancel daily notification', error);
+    logDebug(LOG_TAG, 'failed to cancel daily notification', error);
   }
 }
 
