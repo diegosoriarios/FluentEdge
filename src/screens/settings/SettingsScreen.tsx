@@ -25,6 +25,13 @@ import {
   enableDailyNotifications,
   sendTestQuestionNotification,
 } from '../../notifications/dailyQuestion';
+import {
+  DEFAULT_REMINDER_HOUR,
+  DEFAULT_REMINDER_MINUTE,
+  disableStudyReminder,
+  enableStudyReminder,
+  refreshStudyReminder,
+} from '../../notifications/studyReminder';
 import type { FocusArea } from '../../navigation/types';
 
 const FOCUS_AREAS: FocusArea[] = ['grammar', 'vocabulary', 'tone', 'fluency'];
@@ -57,6 +64,8 @@ export function SettingsScreen() {
   } = useModel();
   const { reset: resetDraft } = useOnboarding();
   const [togglingNotifications, setTogglingNotifications] = useState(false);
+  const [togglingReminder, setTogglingReminder] = useState(false);
+  const [adjustingReminder, setAdjustingReminder] = useState(false);
   const [sendingTestNotification, setSendingTestNotification] = useState(false);
   const [testNotificationStatus, setTestNotificationStatus] = useState<
     string | null
@@ -212,12 +221,75 @@ export function SettingsScreen() {
         await saveProfile({ ...profile, notificationsEnabled: granted });
       } else {
         await disableDailyNotifications();
+        await disableStudyReminder();
         await saveProfile({ ...profile, notificationsEnabled: false });
       }
     } catch (error) {
-      console.warn('Failed to toggle notifications', error);
+      logDebug('notifications', 'failed to toggle notifications', error);
     } finally {
       setTogglingNotifications(false);
+    }
+  };
+
+  const reminderHour = profile.reminderHour ?? DEFAULT_REMINDER_HOUR;
+  const reminderMinute = profile.reminderMinute ?? DEFAULT_REMINDER_MINUTE;
+  const reminderOn =
+    (profile.notificationsEnabled ?? false)
+    && (profile.reminderEnabled ?? true);
+
+  const toggleReminder = async (enabled: boolean) => {
+    setTogglingReminder(true);
+    try {
+      if (enabled) {
+        let notificationsOn = profile.notificationsEnabled ?? false;
+        if (!notificationsOn) {
+          notificationsOn = await enableDailyNotifications();
+        }
+        if (notificationsOn) {
+          await enableStudyReminder(reminderHour, reminderMinute);
+        }
+        await saveProfile({
+          ...profile,
+          notificationsEnabled: notificationsOn,
+          reminderEnabled: notificationsOn,
+        });
+      } else {
+        await disableStudyReminder();
+        await saveProfile({ ...profile, reminderEnabled: false });
+      }
+    } catch (error) {
+      logDebug('notifications', 'failed to toggle study reminder', error);
+    } finally {
+      setTogglingReminder(false);
+    }
+  };
+
+  const formatReminderTime = (hour: number, minute: number): string => {
+    const hh = `${hour}`.padStart(2, '0');
+    const mm = `${minute}`.padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
+  const adjustReminderTime = async (hourDelta: number, minuteDelta: number) => {
+    if (adjustingReminder) {
+      return;
+    }
+    setAdjustingReminder(true);
+    try {
+      const hour = ((reminderHour + hourDelta) % 24 + 24) % 24;
+      const minute = ((reminderMinute + minuteDelta) % 60 + 60) % 60;
+      await saveProfile({
+        ...profile,
+        reminderHour: hour,
+        reminderMinute: minute,
+      });
+      if (reminderOn) {
+        await refreshStudyReminder(hour, minute);
+      }
+    } catch (error) {
+      logDebug('notifications', 'failed to update reminder time', error);
+    } finally {
+      setAdjustingReminder(false);
     }
   };
 
@@ -442,6 +514,59 @@ export function SettingsScreen() {
             trackColor={{ true: colors.primary }}
           />
         </View>
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleText}>
+            <Text style={styles.toggleTitle}>Study reminder</Text>
+            <Text style={styles.muted}>
+              A nudge to open the app and take a practice — skipped
+              automatically on days you already practiced.
+            </Text>
+          </View>
+          <Switch
+            value={reminderOn}
+            onValueChange={toggleReminder}
+            disabled={togglingReminder}
+            trackColor={{ true: colors.primary }}
+          />
+        </View>
+        {reminderOn ? (
+          <View style={styles.timeRow}>
+            <Text style={styles.rowLabel}>Reminder time</Text>
+            <View style={styles.timeControls}>
+              <Button
+                title="−"
+                variant="secondary"
+                onPress={() => adjustReminderTime(-1, 0)}
+                disabled={adjustingReminder}
+                style={styles.stepper}
+              />
+              <Text style={styles.timeText}>
+                {formatReminderTime(reminderHour, reminderMinute)}
+              </Text>
+              <Button
+                title="+"
+                variant="secondary"
+                onPress={() => adjustReminderTime(1, 0)}
+                disabled={adjustingReminder}
+                style={styles.stepper}
+              />
+              <Button
+                title="−15m"
+                variant="secondary"
+                onPress={() => adjustReminderTime(0, -15)}
+                disabled={adjustingReminder}
+                style={styles.stepper}
+              />
+              <Button
+                title="+15m"
+                variant="secondary"
+                onPress={() => adjustReminderTime(0, 15)}
+                disabled={adjustingReminder}
+                style={styles.stepper}
+              />
+            </View>
+          </View>
+        ) : null}
       </Card>
 
       {Platform.OS === 'android' ? (
@@ -580,6 +705,24 @@ const styles = StyleSheet.create({
   toggleText: {
     flex: 1,
     gap: 2,
+  },
+  timeRow: {
+    gap: spacing.xs,
+  },
+  timeControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  timeText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    minWidth: 48,
+    textAlign: 'center',
+  },
+  stepper: {
+    paddingHorizontal: spacing.sm,
   },
   toggleTitle: {
     fontSize: 15,

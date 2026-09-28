@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import notifee from '@notifee/react-native';
+import notifee, { AuthorizationStatus, EventType } from '@notifee/react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useProfile } from '../context/ProfileContext';
 import {
@@ -9,10 +9,12 @@ import {
   recordDailyAnswer,
 } from '../data';
 import {
-  EventType,
+  enableDailyNotifications,
   parsePressAction,
   refreshDailyNotification,
 } from '../notifications/dailyQuestion';
+import { refreshStudyReminder } from '../notifications/studyReminder';
+import { logDebug } from '../services/debugLog';
 import { OnboardingStack } from './OnboardingStack';
 import { MainTabs } from './MainTabs';
 import { ExerciseScreen } from '../screens/exercise/ExerciseScreen';
@@ -25,9 +27,11 @@ import type { NavigationProp } from '@react-navigation/native';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { loading, isComplete, profile, retaking } = useProfile();
+  const { loading, isComplete, profile, retaking, saveProfile } = useProfile();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const notificationsEnabled = profile?.notificationsEnabled ?? false;
+  const reminderEnabled =
+    notificationsEnabled && (profile?.reminderEnabled ?? true);
   const showMainApp = isComplete && !retaking;
 
   useEffect(() => {
@@ -49,7 +53,7 @@ export function RootNavigator() {
           openLesson(pending.id);
         }
       } catch (error) {
-        console.warn('Failed to check pending lesson', error);
+        logDebug('notifications', 'failed to check pending lesson', error);
       }
     };
 
@@ -68,11 +72,47 @@ export function RootNavigator() {
           openLesson(action.questionId);
         } else if (action?.kind === 'open') {
           openLesson(action.questionId);
+        } else if (action?.kind === 'study') {
+          if (!cancelled) {
+            navigation.navigate('Main');
+          }
         } else {
           await openPendingLesson();
         }
       } catch (error) {
-        console.warn('Failed to handle initial notification', error);
+        logDebug('notifications', 'failed to handle initial notification', error);
+      }
+    };
+
+    const decideNotificationsEnabled = async () => {
+      if (!profile || profile.notificationsEnabled !== undefined) {
+        return;
+      }
+      try {
+        const settings = await notifee.getNotificationSettings();
+        const granted =
+          settings.authorizationStatus === AuthorizationStatus.AUTHORIZED ||
+          settings.authorizationStatus === AuthorizationStatus.PROVISIONAL;
+        if (granted) {
+          logDebug(
+            'notifications',
+            'permission already granted but never opted in — enabling daily notifications',
+          );
+          const ok = await enableDailyNotifications();
+          if (!cancelled) {
+            await saveProfile({ ...profile, notificationsEnabled: ok });
+          }
+        } else {
+          if (!cancelled) {
+            await saveProfile({ ...profile, notificationsEnabled: false });
+          }
+        }
+      } catch (error) {
+        logDebug(
+          'notifications',
+          'failed to decide initial notifications state',
+          error,
+        );
       }
     };
 
@@ -81,19 +121,30 @@ export function RootNavigator() {
         try {
           await refreshDailyNotification();
         } catch (error) {
-          console.warn('Failed to refresh daily notification', error);
+          logDebug('notifications', 'failed to refresh daily notification', error);
+        }
+      }
+      if (reminderEnabled) {
+        try {
+          await refreshStudyReminder(
+            profile?.reminderHour,
+            profile?.reminderMinute,
+          );
+        } catch (error) {
+          logDebug('notifications', 'failed to refresh study reminder', error);
         }
       }
       await handleInitialNotification();
     };
 
+    decideNotificationsEnabled();
     init();
 
     const unsubscribeForeground = notifee.onForegroundEvent(event => {
       const action = parsePressAction(event.detail.pressAction?.id);
       if (event.type === EventType.ACTION_PRESS && action?.kind === 'answer') {
         recordDailyAnswer(action.questionId, action.index).catch(error => {
-          console.warn('Failed to record answer', error);
+          logDebug('notifications', 'failed to record answer', error);
         });
         const notificationId = event.detail.notification?.id;
         if (notificationId) {
@@ -102,6 +153,10 @@ export function RootNavigator() {
         openLesson(action.questionId);
       } else if (action?.kind === 'open') {
         openLesson(action.questionId);
+      } else if (action?.kind === 'study') {
+        if (!cancelled) {
+          navigation.navigate('Main');
+        }
       } else if (event.type === EventType.PRESS) {
         openPendingLesson();
       }
@@ -118,7 +173,15 @@ export function RootNavigator() {
       unsubscribeForeground();
       appStateSubscription.remove();
     };
-  }, [loading, showMainApp, notificationsEnabled, navigation]);
+  }, [
+    loading,
+    showMainApp,
+    notificationsEnabled,
+    reminderEnabled,
+    profile,
+    saveProfile,
+    navigation,
+  ]);
 
   if (loading) {
     return null;
