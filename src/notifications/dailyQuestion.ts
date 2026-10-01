@@ -104,7 +104,10 @@ function questionNotification(
     android: {
       channelId: ANDROID_CHANNEL_ID,
       smallIcon: 'ic_notification',
-      pressAction: { id: buildOpenActionId(question.id) },
+      pressAction: {
+        id: buildOpenActionId(question.id),
+        launchActivity: 'default',
+      },
       actions: question.options.map((option, index) => ({
         title: option,
         pressAction: { id: buildAnswerActionId(question.id, index) },

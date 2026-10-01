@@ -54,6 +54,7 @@ export function useSessionStats() {
     totalSessions: 0,
     lastSessionAt: null,
     streakDays: 0,
+    practiceDays: [],
   });
 
   const reload = useCallback(async () => {

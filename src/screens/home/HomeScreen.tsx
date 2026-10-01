@@ -5,6 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
+import { StreakCard } from '../../components/StreakCard';
 import { Button, Card, Chip, SectionLabel } from '../../components/ui';
 import { colors, fonts, spacing } from '../../theme';
 import { useProfile } from '../../context/ProfileContext';
@@ -81,16 +82,15 @@ export function HomeScreen({ navigation }: Props) {
           </Text>
         </Card>
       ) : null}
+      <StreakCard
+        streakDays={stats.streakDays}
+        practiceDays={stats.practiceDays}
+        style={styles.streakCard}
+      />
       <View style={styles.statsRow}>
         <Card style={styles.statCard}>
           <Text style={styles.statValue}>{stats.totalSessions}</Text>
           <Text style={styles.statLabel}>Sessions</Text>
-        </Card>
-        <Card style={styles.statCard}>
-          <Text style={[styles.statValue, { color: colors.streak }]}>
-            {stats.streakDays}
-          </Text>
-          <Text style={styles.statLabel}>Day streak</Text>
         </Card>
         <Card style={styles.statCard}>
           <Text style={[styles.statValue, { color: colors.primary }]}>
@@ -167,6 +167,9 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  streakCard: {
     marginBottom: spacing.md,
   },
   statCard: {

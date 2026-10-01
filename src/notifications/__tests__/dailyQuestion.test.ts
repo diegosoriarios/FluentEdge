@@ -96,4 +96,16 @@ describe('buildTestNotification', () => {
     );
     expect(notification.ios?.categoryId).toBe('daily_question');
   });
+
+  it('launches the default activity when the notification body is pressed', () => {
+    const notification = buildTestNotification(QUESTION);
+    expect(notification.android?.pressAction?.launchActivity).toBe('default');
+  });
+
+  it('does not launch the app when an answer button is pressed', () => {
+    const notification = buildTestNotification(QUESTION);
+    for (const action of notification.android?.actions ?? []) {
+      expect(action.pressAction?.launchActivity).toBeUndefined();
+    }
+  });
 });

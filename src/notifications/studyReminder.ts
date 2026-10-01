@@ -64,7 +64,10 @@ function reminderNotification(): Notification {
     android: {
       channelId: STUDY_REMINDER_CHANNEL_ID,
       smallIcon: 'ic_notification',
-      pressAction: { id: STUDY_REMINDER_PRESS_ACTION_ID },
+      pressAction: {
+        id: STUDY_REMINDER_PRESS_ACTION_ID,
+        launchActivity: 'default',
+      },
     },
   };
 }

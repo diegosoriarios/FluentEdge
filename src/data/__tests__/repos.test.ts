@@ -10,6 +10,7 @@ import {
   getSession,
   getSessionStats,
   insertSession,
+  lastNDaysActivity,
   listSessions,
   setChosenIndex,
   updateSessionPrompt,
@@ -173,6 +174,10 @@ describe('sessionsRepo', () => {
     expect(stats.totalSessions).toBe(5);
     expect(stats.lastSessionAt).toBe(123);
     expect(stats.streakDays).toBe(2);
+    expect(stats.practiceDays).toEqual([
+      dayKey(today - 86400000),
+      dayKey(today),
+    ]);
   });
 });
 
@@ -190,5 +195,54 @@ describe('computeStreakDays', () => {
       today,
     );
     expect(streak).toBe(2);
+  });
+});
+
+describe('lastNDaysActivity', () => {
+  const today = Date.now();
+  const dayKey = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${date.getFullYear()}-${month}-${day}`;
+  };
+
+  it('marks today as active when practiced today', () => {
+    const activity = lastNDaysActivity([dayKey(today)], 7, today);
+    expect(activity).toHaveLength(7);
+    expect(activity[6]).toBe(true);
+    expect(activity.slice(0, 6)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it('keeps past days active and today inactive when today has no session', () => {
+    const activity = lastNDaysActivity(
+      [dayKey(today - 86400000), dayKey(today - 2 * 86400000)],
+      7,
+      today,
+    );
+    expect(activity[4]).toBe(true);
+    expect(activity[5]).toBe(true);
+    expect(activity[6]).toBe(false);
+  });
+
+  it('orders results oldest to newest', () => {
+    const activity = lastNDaysActivity([dayKey(today)], 3, today);
+    expect(activity).toEqual([false, false, true]);
+  });
+
+  it('ignores practice days older than the window', () => {
+    const activity = lastNDaysActivity([dayKey(today - 30 * 86400000)], 7, today);
+    expect(activity).toEqual([false, false, false, false, false, false, false]);
+  });
+
+  it('returns an empty array for a zero-day window', () => {
+    expect(lastNDaysActivity([dayKey(today)], 0, today)).toEqual([]);
   });
 });
