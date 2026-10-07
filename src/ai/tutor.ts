@@ -1,14 +1,15 @@
 import { initLlama } from 'llama.rn';
 import type { LlamaContext } from 'llama.rn';
+import { Platform } from 'react-native';
 import {
   N_CTX,
   N_PREDICT,
-  N_THREADS,
   TEMPERATURE,
 } from './modelConfig';
 import type { ModelVariant } from './modelConfig';
 import { languageConfig } from './languages';
 import { getVerifiedModelPath } from '../services/modelManager';
+import { resolveNThreads } from '../services/deviceCapabilities';
 import { logDebug } from '../services/debugLog';
 import type {
   Correction,
@@ -396,6 +397,30 @@ export function parseMultipleChoice(raw: string): MultipleChoiceExercise {
 const llamaContexts = new Map<ModelVariant, LlamaContext>();
 const initPromises = new Map<ModelVariant, Promise<LlamaContext>>();
 
+const IOS_N_GPU_LAYERS = 99;
+
+function formatInitError(cause: unknown): ModelInitError {
+  return new ModelInitError(
+    `Could not load the on-device model: ${
+      cause instanceof Error ? cause.message : String(cause)
+    }`,
+  );
+}
+
+async function createContext(
+  modelPath: string,
+  nThreads: number,
+  nGpuLayers: number,
+): Promise<LlamaContext> {
+  return initLlama({
+    model: modelPath,
+    n_ctx: N_CTX,
+    n_threads: nThreads,
+    use_mlock: true,
+    n_gpu_layers: nGpuLayers,
+  });
+}
+
 export async function ensureModelLoaded(
   variant: ModelVariant = 'full',
 ): Promise<LlamaContext> {
@@ -407,23 +432,29 @@ export async function ensureModelLoaded(
   if (!initPromise) {
     initPromise = (async () => {
       const modelPath = await getVerifiedModelPath(variant);
+      const nThreads = await resolveNThreads();
+      const nGpuLayers = Platform.OS === 'ios' ? IOS_N_GPU_LAYERS : 0;
       try {
-        const context = await initLlama({
-          model: modelPath,
-          n_ctx: N_CTX,
-          n_threads: N_THREADS,
-          use_mlock: true,
-          n_gpu_layers: 0,
-        });
+        const context = await createContext(modelPath, nThreads, nGpuLayers);
         llamaContexts.set(variant, context);
         return context;
       } catch (cause) {
-        initPromises.delete(variant);
-        throw new ModelInitError(
-          `Could not load the on-device model: ${
-            cause instanceof Error ? cause.message : String(cause)
-          }`,
+        if (nGpuLayers === 0) {
+          initPromises.delete(variant);
+          throw formatInitError(cause);
+        }
+        logDebug(
+          'ai',
+          `gpu init failed (${formatUnknown(cause)}), retrying on cpu`,
         );
+        try {
+          const context = await createContext(modelPath, nThreads, 0);
+          llamaContexts.set(variant, context);
+          return context;
+        } catch (cpuCause) {
+          initPromises.delete(variant);
+          throw formatInitError(cpuCause);
+        }
       }
     })();
     initPromises.set(variant, initPromise);

@@ -2,7 +2,6 @@ import notifee, {
   AndroidImportance,
   AuthorizationStatus,
   EventType,
-  RepeatFrequency,
   TimestampTrigger,
   TriggerType,
 } from '@notifee/react-native';
@@ -10,6 +9,7 @@ import type { Notification } from '@notifee/react-native';
 import { Platform } from 'react-native';
 import {
   ensureQuestionsSeeded,
+  getDailyQuestionWindow,
   getUnansweredDailyQuestion,
 } from '../data';
 import type { DailyQuestionRecord } from '../data/questions';
@@ -22,8 +22,21 @@ export const ANDROID_CHANNEL_ID = 'daily-practice';
 export const IOS_CATEGORY_ID = 'daily_question';
 export const DEFAULT_HOUR = 19;
 export const DEFAULT_MINUTE = 0;
+export const DAILY_WINDOW_DAYS = 14;
 export const LOG_TAG = 'notifications';
 export const STUDY_REMINDER_PRESS_ACTION_ID = 'open-study';
+
+export function buildDailyTriggerId(dayIndex: number): string {
+  return `${DAILY_NOTIFICATION_ID}-d${dayIndex}`;
+}
+
+export function buildIosCategoryId(dayIndex: number): string {
+  return `${IOS_CATEGORY_ID}_${dayIndex}`;
+}
+
+export function isDailyTriggerId(id: string): boolean {
+  return id === DAILY_NOTIFICATION_ID || /^daily-practice-d\d+$/.test(id);
+}
 
 export type PressActionPayload =
   | { kind: 'answer'; questionId: string; index: number }
@@ -63,16 +76,36 @@ export function parsePressAction(
   return null;
 }
 
-export function nextOccurrence(
+function baseOccurrence(
   hour: number,
   minute: number,
-  now = Date.now(),
-): number {
+  now: number,
+): Date {
   const date = new Date(now);
   date.setHours(hour, minute, 0, 0);
   if (date.getTime() <= now) {
     date.setDate(date.getDate() + 1);
   }
+  return date;
+}
+
+export function nextOccurrence(
+  hour: number,
+  minute: number,
+  now = Date.now(),
+): number {
+  return baseOccurrence(hour, minute, now).getTime();
+}
+
+export function dailyTriggerTimestamp(
+  hour: number,
+  minute: number,
+  dayOffset: number,
+  now = Date.now(),
+): number {
+  const date = baseOccurrence(hour, minute, now);
+  date.setDate(date.getDate() + dayOffset);
+  date.setHours(hour, minute, 0, 0);
   return date.getTime();
 }
 
@@ -96,6 +129,7 @@ function questionNotification(
   id: string,
   title: string,
   question: DailyQuestionRecord,
+  categoryId: string = IOS_CATEGORY_ID,
 ): Notification {
   return {
     id,
@@ -114,24 +148,39 @@ function questionNotification(
       })),
     },
     ios: {
-      categoryId: IOS_CATEGORY_ID,
+      categoryId,
     },
   };
 }
 
-async function registerIosCategory(
-  question: DailyQuestionRecord,
+async function registerIosCategories(
+  entries: { id: string; question: DailyQuestionRecord }[],
 ): Promise<void> {
-  await notifee.setNotificationCategories([
-    {
-      id: IOS_CATEGORY_ID,
+  if (Platform.OS !== 'ios' || entries.length === 0) {
+    return;
+  }
+  await notifee.setNotificationCategories(
+    entries.map(({ id, question }) => ({
+      id,
       actions: question.options.map((option, index) => ({
         id: buildAnswerActionId(question.id, index),
         title: option,
         foreground: false,
       })),
-    },
-  ]);
+    })),
+  );
+}
+
+async function cancelDailyTriggers(): Promise<void> {
+  try {
+    const ids = await notifee.getTriggerNotificationIds();
+    const dailyIds = ids.filter(isDailyTriggerId);
+    if (dailyIds.length > 0) {
+      await notifee.cancelTriggerNotifications(dailyIds);
+    }
+  } catch (error) {
+    logDebug(LOG_TAG, 'failed to cancel previous daily triggers', error);
+  }
 }
 
 export async function refreshDailyNotification(
@@ -140,38 +189,52 @@ export async function refreshDailyNotification(
 ): Promise<DailyQuestionRecord | null> {
   return runScheduledExclusively(async () => {
     await ensureQuestionsSeeded();
-    const question = await getUnansweredDailyQuestion();
-    if (!question) {
+    const window = await getDailyQuestionWindow(DAILY_WINDOW_DAYS);
+    if (window.length === 0) {
       logDebug(
         LOG_TAG,
-        'no unanswered daily question available — nothing scheduled',
+        'no daily questions available — nothing scheduled',
       );
       return null;
     }
 
-    await registerIosCategory(question);
-    await ensureAndroidChannel();
-    await notifee.cancelTriggerNotifications([DAILY_NOTIFICATION_ID]);
-
-    const timestamp = nextOccurrence(hour, minute);
-    const trigger: TimestampTrigger = {
-      type: TriggerType.TIMESTAMP,
-      timestamp,
-      repeatFrequency: RepeatFrequency.DAILY,
-    };
-
-    await notifee.createTriggerNotification(
-      questionNotification(DAILY_NOTIFICATION_ID, 'Daily grammar practice', question),
-      trigger,
+    await registerIosCategories(
+      window.map((question, index) => ({
+        id: buildIosCategoryId(index),
+        question,
+      })),
     );
+    await ensureAndroidChannel();
+    await cancelDailyTriggers();
+
+    const first: Date = new Date(
+      dailyTriggerTimestamp(hour, minute, 0),
+    );
+    for (let day = 0; day < DAILY_WINDOW_DAYS; day += 1) {
+      const question = window[day % window.length];
+      const trigger: TimestampTrigger = {
+        type: TriggerType.TIMESTAMP,
+        timestamp: dailyTriggerTimestamp(hour, minute, day),
+      };
+      await notifee.createTriggerNotification(
+        questionNotification(
+          buildDailyTriggerId(day),
+          'Daily grammar practice',
+          question,
+          buildIosCategoryId(day),
+        ),
+        trigger,
+      );
+    }
     logDebug(
       LOG_TAG,
-      `daily question scheduled at ${new Date(timestamp).toISOString()} `
-        + `(repeats daily, question ${question.id})`,
+      `daily question window scheduled: ${window.length} questions `
+        + `over ${DAILY_WINDOW_DAYS} days, first at ${first.toISOString()} `
+        + `(question ${window[0].id})`,
     );
     await verifyTriggersRegistered(LOG_TAG);
 
-    return question;
+    return window[0];
   });
 }
 
@@ -196,7 +259,9 @@ export async function sendTestQuestionNotification(): Promise<DailyQuestionRecor
   if (!question) {
     throw new Error('No unanswered question left to send.');
   }
-  await registerIosCategory(question);
+  await registerIosCategories([
+    { id: IOS_CATEGORY_ID, question },
+  ]);
   await notifee.displayNotification(buildTestNotification(question));
   return question;
 }
@@ -229,10 +294,10 @@ export async function enableDailyNotifications(): Promise<boolean> {
 
 export async function disableDailyNotifications(): Promise<void> {
   try {
-    await notifee.cancelTriggerNotifications([DAILY_NOTIFICATION_ID]);
-    logDebug(LOG_TAG, 'daily question notification cancelled');
+    await cancelDailyTriggers();
+    logDebug(LOG_TAG, 'daily question notifications cancelled');
   } catch (error) {
-    logDebug(LOG_TAG, 'failed to cancel daily notification', error);
+    logDebug(LOG_TAG, 'failed to cancel daily notifications', error);
   }
 }
 

@@ -17,10 +17,11 @@ export function useWeakSpots(limit = 20) {
     { type: string; count: number }[]
   >([]);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (): Promise<string> => {
     try {
       const lists = await getRecentErrorTypeLists(limit);
-      setSummary(summarizeWeakSpotsFromLists(lists));
+      const nextSummary = summarizeWeakSpotsFromLists(lists);
+      setSummary(nextSummary);
       const counts = new Map<string, number>();
       for (const errorTypes of lists) {
         for (const errorType of errorTypes) {
@@ -37,8 +38,10 @@ export function useWeakSpots(limit = 20) {
           .sort((a, b) => b.count - a.count)
           .slice(0, 5),
       );
+      return nextSummary;
     } catch (error) {
       console.warn('Failed to load weak spots', error);
+      return '';
     }
   }, [limit]);
 

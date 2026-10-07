@@ -65,6 +65,21 @@ export async function getUnansweredDailyQuestion(): Promise<DailyQuestionRecord 
     : null;
 }
 
+export async function getDailyQuestionWindow(
+  limit: number,
+): Promise<DailyQuestionRecord[]> {
+  const db = await getDb();
+  const [result] = await db.executeSql(
+    'SELECT * FROM daily_questions ORDER BY COALESCE(answered_at, 0) ASC, rowid ASC LIMIT ?',
+    [limit],
+  );
+  const questions: DailyQuestionRecord[] = [];
+  for (let i = 0; i < result.rows.length; i += 1) {
+    questions.push(rowToDailyQuestion(result.rows.item(i) as DailyQuestionRow));
+  }
+  return questions;
+}
+
 export async function recordDailyAnswer(
   id: string,
   chosenIndex: number,

@@ -6,6 +6,7 @@ import {
 import {
   computeStreakDays,
   deleteSession,
+  getDailyQuestionWindow,
   getRecentErrorTypeLists,
   getSession,
   getSessionStats,
@@ -178,6 +179,32 @@ describe('sessionsRepo', () => {
       dayKey(today - 86400000),
       dayKey(today),
     ]);
+  });
+});
+
+describe('dailyQuestionsRepo', () => {
+  it('returns the window of questions ordered unanswered-first', async () => {
+    const makeRow = (id: string, question: string) => ({
+      id,
+      question,
+      options_json: JSON.stringify([`${id}-a`, `${id}-b`, `${id}-c`]),
+      answer_index: 1,
+      explanation: 'e',
+      chosen_index: null,
+      answered_at: null,
+      viewed_at: null,
+    });
+    mockSqlResponse('SELECT * FROM daily_questions', [
+      makeRow('q1', 'First?'),
+      makeRow('q2', 'Second?'),
+    ]);
+    const window = await getDailyQuestionWindow(14);
+    expect(window.map(question => question.id)).toEqual(['q1', 'q2']);
+    expect(window[0].options).toEqual(['q1-a', 'q1-b', 'q1-c']);
+    const call = sqlCalls().find(([sql]) =>
+      sql.includes('SELECT * FROM daily_questions'),
+    );
+    expect(call?.[1]).toEqual([14]);
   });
 });
 

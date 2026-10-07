@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -14,7 +14,11 @@ import { useSessionStats, useWeakSpots } from '../../hooks/useSessionData';
 import { GOAL_LABELS } from '../../data/prompts';
 import { getPromptForProfile } from '../../data/prompts';
 import { insertSession } from '../../data';
-import { createTypeRotation } from '../../utils/exercises';
+import { nextExerciseType } from '../../utils/exercises';
+import {
+  prefetchNextExercise,
+  takeCachedExercise,
+} from '../../services/exerciseCache';
 import { createId } from '../../utils/id';
 import type { GeneratedExercise } from '../../ai/tutor';
 import type { MainTabParamList, RootStackParamList } from '../../navigation/types';
@@ -31,16 +35,23 @@ export function HomeScreen({ navigation }: Props) {
   const { summary: weakSpotsSummary, topErrorTypes, reload: reloadWeakSpots } =
     useWeakSpots();
   const [generating, setGenerating] = useState(false);
-  const rotationRef = useRef(createTypeRotation());
+  const modelReady = modelState === 'ready';
 
   useFocusEffect(
     useCallback(() => {
       reloadStats();
-      reloadWeakSpots();
-    }, [reloadStats, reloadWeakSpots]),
+      let cancelled = false;
+      (async () => {
+        const summary = await reloadWeakSpots();
+        if (!cancelled && modelReady && profile) {
+          prefetchNextExercise(profile, summary).catch(() => {});
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [reloadStats, reloadWeakSpots, modelReady, profile]),
   );
-
-  const modelReady = modelState === 'ready';
 
   const startExercise = async () => {
     if (!profile || !modelReady || generating) {
@@ -49,17 +60,8 @@ export function HomeScreen({ navigation }: Props) {
     setGenerating(true);
     const sessionId = createId('s_');
     try {
-      let generated: GeneratedExercise;
-      try {
-        const type = rotationRef.current();
-        generated = await generateExercise(profile, type, weakSpotsSummary);
-      } catch {
-        generated = {
-          type: 'paragraph',
-          prompt: getPromptForProfile(profile),
-          exercise: null,
-        };
-      }
+      let generated =
+        takeCachedExercise(profile, weakSpotsSummary) ?? (await generateNew());
       await insertSession(
         sessionId,
         generated.prompt,
@@ -69,6 +71,25 @@ export function HomeScreen({ navigation }: Props) {
       navigation.navigate('Exercise', { sessionId });
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const generateNew = async (): Promise<GeneratedExercise> => {
+    if (!profile) {
+      throw new Error('Profile is missing.');
+    }
+    try {
+      return await generateExercise(
+        profile,
+        nextExerciseType(),
+        weakSpotsSummary,
+      );
+    } catch {
+      return {
+        type: 'paragraph',
+        prompt: getPromptForProfile(profile),
+        exercise: null,
+      };
     }
   };
 

@@ -36,11 +36,16 @@ import {
 } from '../services/deviceCapabilities';
 import type { DeviceCapability } from '../services/deviceCapabilities';
 import {
+  ensureModelLoaded,
   evaluateWriting,
   generateExercise as generateExerciseTutor,
   releaseModel as releaseTutorModel,
 } from '../ai/tutor';
 import type { EvaluateCallbacks, GeneratedExercise } from '../ai/tutor';
+import {
+  clearExerciseCache,
+  enqueueGeneration,
+} from '../services/exerciseCache';
 import type {
   Evaluation,
   ExerciseType,
@@ -117,6 +122,8 @@ export function ModelProvider({ children }: { children: ReactNode }) {
   const releaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef(0);
   const prevStateRef = useRef<ModelState>(modelState);
+  const modelStateRef = useRef(modelState);
+  const activeVariantRef = useRef(activeVariant);
 
   useEffect(() => {
     if (prevStateRef.current !== modelState) {
@@ -150,6 +157,30 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       console.warn('Failed to check device capabilities', error);
     }
   }, []);
+
+  const prewarmModel = useCallback(() => {
+    if (modelStateRef.current !== 'ready') {
+      return;
+    }
+    ensureModelLoaded(activeVariantRef.current)
+      .then(() => {
+        logDebug('model', 'model pre-warmed');
+      })
+      .catch(error => {
+        logDebug('model', 'pre-warm failed', error);
+      });
+  }, []);
+
+  useEffect(() => {
+    modelStateRef.current = modelState;
+    if (modelState === 'ready') {
+      prewarmModel();
+    }
+  }, [modelState, prewarmModel]);
+
+  useEffect(() => {
+    activeVariantRef.current = activeVariant;
+  }, [activeVariant]);
 
   useEffect(() => {
     let cancelled = false;
@@ -262,6 +293,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       taskRef.current?.stop();
       taskRef.current = null;
       await releaseTutorModel().catch(() => {});
+      clearExerciseCache();
       await deleteModelFiles(variant).catch(() => {});
       await refreshCapability();
       const remaining = await getDownloadedVariant().catch(() => null);
@@ -307,10 +339,8 @@ export function ModelProvider({ children }: { children: ReactNode }) {
     async (profile: Profile, weakSpotsSummary = '') => {
       inFlightRef.current += 1;
       try {
-        const generated = await generateExerciseTutor(
-          'paragraph',
-          profile,
-          weakSpotsSummary,
+        const generated = await enqueueGeneration(() =>
+          generateExerciseTutor('paragraph', profile, weakSpotsSummary),
         );
         return generated.prompt;
       } finally {
@@ -324,7 +354,9 @@ export function ModelProvider({ children }: { children: ReactNode }) {
     async (profile: Profile, type: ExerciseType, weakSpotsSummary = '') => {
       inFlightRef.current += 1;
       try {
-        return await generateExerciseTutor(type, profile, weakSpotsSummary);
+        return await enqueueGeneration(() =>
+          generateExerciseTutor(type, profile, weakSpotsSummary),
+        );
       } finally {
         inFlightRef.current -= 1;
       }
@@ -356,13 +388,14 @@ export function ModelProvider({ children }: { children: ReactNode }) {
         scheduleRelease();
       } else if (state === 'active') {
         clearReleaseTimer();
+        prewarmModel();
       }
     });
     return () => {
       subscription.remove();
       clearReleaseTimer();
     };
-  }, []);
+  }, [prewarmModel]);
 
   const value = useMemo(
     () => ({

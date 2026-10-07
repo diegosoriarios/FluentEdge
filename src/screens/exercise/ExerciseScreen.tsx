@@ -7,6 +7,7 @@ import { AnswerChoices } from '../../components/AnswerChoices';
 import { colors, fonts, radius, spacing } from '../../theme';
 import {
   getSession,
+  getRecentErrorTypeLists,
   setChosenIndex,
   updateSessionEvaluation,
   updateSessionPrompt,
@@ -15,11 +16,17 @@ import {
 import { getPromptForProfile } from '../../data/prompts';
 import { useModel } from '../../context/ModelContext';
 import type { EvaluationStage } from '../../ai/tutor';
+import { summarizeWeakSpotsFromLists } from '../../ai/adaptive';
+import { prefetchNextExercise } from '../../services/exerciseCache';
 import { useProfile } from '../../context/ProfileContext';
 import { useRecentSessions, useWeakSpots } from '../../hooks/useSessionData';
 import { nextLevel } from '../../ai/adaptive';
 import { countWords } from '../../utils/format';
-import type { RootStackParamList, SessionSummary } from '../../navigation/types';
+import type {
+  Profile,
+  RootStackParamList,
+  SessionSummary,
+} from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Exercise'>;
 
@@ -164,13 +171,16 @@ export function ExerciseScreen({ route, navigation }: Props) {
         sessionsWithCurrent,
         profile.lastLevelAdjustAt ?? null,
       );
+      const effectiveProfile: Profile = adjustment.changed
+        ? { ...profile, level: adjustment.level, lastLevelAdjustAt: Date.now() }
+        : profile;
       if (adjustment.changed) {
-        await saveProfile({
-          ...profile,
-          level: adjustment.level,
-          lastLevelAdjustAt: Date.now(),
-        });
+        await saveProfile(effectiveProfile);
       }
+      const freshSummary = await getRecentErrorTypeLists(20)
+        .then(lists => summarizeWeakSpotsFromLists(lists))
+        .catch(() => weakSpotsSummary);
+      prefetchNextExercise(effectiveProfile, freshSummary).catch(() => {});
       navigation.replace('Feedback', { sessionId: session.id });
     } catch (error) {
       setSubmitError(
