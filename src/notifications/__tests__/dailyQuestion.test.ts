@@ -18,6 +18,17 @@ import { clearSqlResponses, mockSqlResponse, sqlCalls } from '../../test/sqlMock
 
 const notifeeMock = notifee as unknown as Record<string, jest.Mock>;
 
+const QUESTION: DailyQuestionRecord = {
+  id: 'q_present_perfect_since',
+  question: 'I ___ here since 2019.',
+  options: ['am living', 'have lived', 'live'],
+  answerIndex: 1,
+  explanation: '"Since" marks a starting point — present perfect.',
+  chosenIndex: null,
+  answeredAt: null,
+  viewedAt: null,
+};
+
 describe('press action ids', () => {
   it('round-trips answer ids', () => {
     const id = buildAnswerActionId('q_present_perfect_since', 2);
@@ -195,17 +206,6 @@ describe('refreshDailyNotification', () => {
     expect(notifeeMock.createTriggerNotification).not.toHaveBeenCalled();
   });
 });
-
-const QUESTION: DailyQuestionRecord = {
-  id: 'q_present_perfect_since',
-  question: 'I ___ here since 2019.',
-  options: ['am living', 'have lived', 'live'],
-  answerIndex: 1,
-  explanation: '"Since" marks a starting point — present perfect.',
-  chosenIndex: null,
-  answeredAt: null,
-  viewedAt: null,
-};
 
 describe('buildTestNotification', () => {
   it('uses the test notification id and the standard title suffix', () => {

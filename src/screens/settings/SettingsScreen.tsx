@@ -217,7 +217,7 @@ export function SettingsScreen() {
     setTogglingNotifications(true);
     try {
       if (enabled) {
-        const granted = await enableDailyNotifications();
+        const granted = await enableDailyNotifications(profile);
         await saveProfile({ ...profile, notificationsEnabled: granted });
       } else {
         await disableDailyNotifications();
@@ -243,7 +243,7 @@ export function SettingsScreen() {
       if (enabled) {
         let notificationsOn = profile.notificationsEnabled ?? false;
         if (!notificationsOn) {
-          notificationsOn = await enableDailyNotifications();
+          notificationsOn = await enableDailyNotifications(profile);
         }
         if (notificationsOn) {
           await enableStudyReminder(reminderHour, reminderMinute);

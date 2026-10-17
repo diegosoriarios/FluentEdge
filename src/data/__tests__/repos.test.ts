@@ -6,10 +6,13 @@ import {
 import {
   computeStreakDays,
   deleteSession,
+  getAnsweredDailyQuestions,
   getDailyQuestionWindow,
   getRecentErrorTypeLists,
   getSession,
   getSessionStats,
+  getUnansweredDailyQuestions,
+  insertGeneratedDailyQuestion,
   insertSession,
   lastNDaysActivity,
   listSessions,
@@ -222,6 +225,79 @@ describe('computeStreakDays', () => {
       today,
     );
     expect(streak).toBe(2);
+  });
+});
+
+describe('dailyQuestionsRepo pool selection', () => {
+  const questionRow = (id: string) => ({
+    id,
+    question: `Question ${id}?`,
+    options_json: JSON.stringify(['a', 'b', 'c']),
+    answer_index: 1,
+    explanation: 'Because.',
+    chosen_index: null,
+    answered_at: null,
+    viewed_at: null,
+  });
+
+  it('fetches unanswered questions with a random limit', async () => {
+    mockSqlResponse('WHERE answered_at IS NULL', [questionRow('q1')]);
+    const questions = await getUnansweredDailyQuestions(7);
+    expect(questions).toHaveLength(1);
+    expect(questions[0]).toMatchObject({ id: 'q1', options: ['a', 'b', 'c'] });
+    const call = sqlCalls().find(([sql]) =>
+      sql.includes('WHERE answered_at IS NULL'),
+    );
+    expect(call?.[1]).toEqual([7]);
+    expect(call?.[0]).toContain('ORDER BY RANDOM()');
+  });
+
+  it('fetches answered questions for recycling', async () => {
+    mockSqlResponse('WHERE answered_at IS NOT NULL', [
+      { ...questionRow('q2'), chosen_index: 1, answered_at: 123 },
+    ]);
+    const questions = await getAnsweredDailyQuestions(5);
+    expect(questions).toHaveLength(1);
+    expect(questions[0].answeredAt).toBe(123);
+    const call = sqlCalls().find(([sql]) =>
+      sql.includes('WHERE answered_at IS NOT NULL'),
+    );
+    expect(call?.[1]).toEqual([5]);
+  });
+
+  it('inserts a generated question with a generated id', async () => {
+    mockSqlResponse('INSERT INTO daily_questions', [{}]);
+    const inserted = await insertGeneratedDailyQuestion({
+      question: 'New AI question?',
+      options: ['x', 'y', 'z'],
+      answerIndex: 2,
+      explanation: 'Why not.',
+    });
+    expect(inserted).toBe(true);
+    const call = sqlCalls().find(([sql]) =>
+      sql.startsWith('INSERT INTO daily_questions'),
+    );
+    expect(call?.[1]).toEqual([
+      expect.stringMatching(/^q_gen_/),
+      'New AI question?',
+      JSON.stringify(['x', 'y', 'z']),
+      2,
+      'Why not.',
+    ]);
+  });
+
+  it('skips generated questions that duplicate existing text', async () => {
+    mockSqlResponse('WHERE question = ?', [{ id: 'q_existing' }]);
+    const inserted = await insertGeneratedDailyQuestion({
+      question: 'Question q_existing?',
+      options: ['a', 'b', 'c'],
+      answerIndex: 0,
+      explanation: 'Because.',
+    });
+    expect(inserted).toBe(false);
+    expect(
+      sqlCalls().some(([sql]) => sql.startsWith('INSERT INTO daily_questions')),
+    ).toBe(false);
   });
 });
 

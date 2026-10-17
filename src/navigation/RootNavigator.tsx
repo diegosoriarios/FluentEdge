@@ -98,7 +98,7 @@ export function RootNavigator() {
             'notifications',
             'permission already granted but never opted in — enabling daily notifications',
           );
-          const ok = await enableDailyNotifications();
+          const ok = await enableDailyNotifications(profile);
           if (!cancelled) {
             await saveProfile({ ...profile, notificationsEnabled: ok });
           }
@@ -119,7 +119,7 @@ export function RootNavigator() {
     const init = async () => {
       if (notificationsEnabled) {
         try {
-          await refreshDailyNotification();
+          await refreshDailyNotification(profile ?? null);
         } catch (error) {
           logDebug('notifications', 'failed to refresh daily notification', error);
         }

@@ -8,11 +8,16 @@ import notifee, {
 import type { Notification } from '@notifee/react-native';
 import { Platform } from 'react-native';
 import {
+  countUnansweredDailyQuestions,
   ensureQuestionsSeeded,
+  getAnsweredDailyQuestions,
   getDailyQuestionWindow,
-  getUnansweredDailyQuestion,
+  getUnansweredDailyQuestions,
+  insertGeneratedDailyQuestion,
 } from '../data';
 import type { DailyQuestionRecord } from '../data/questions';
+import { generateDailyQuestion } from '../ai/tutor';
+import type { Profile } from '../navigation/types';
 import { logDebug } from '../services/debugLog';
 import { runScheduledExclusively, verifyTriggersRegistered } from './scheduler';
 
@@ -23,6 +28,7 @@ export const IOS_CATEGORY_ID = 'daily_question';
 export const DEFAULT_HOUR = 19;
 export const DEFAULT_MINUTE = 0;
 export const DAILY_WINDOW_DAYS = 14;
+export const MAX_GENERATED_PER_REPLENISH = 3;
 export const LOG_TAG = 'notifications';
 export const STUDY_REMINDER_PRESS_ACTION_ID = 'open-study';
 
@@ -183,12 +189,58 @@ async function cancelDailyTriggers(): Promise<void> {
   }
 }
 
+async function topUpQuestionPool(
+  profile: Profile,
+  deficit: number,
+): Promise<number> {
+  const target = Math.min(deficit, MAX_GENERATED_PER_REPLENISH);
+  let inserted = 0;
+  for (let attempt = 0; attempt < target; attempt += 1) {
+    try {
+      const question = await generateDailyQuestion(profile);
+      if (!question) {
+        logDebug(LOG_TAG, 'model did not return a multiple-choice question');
+        break;
+      }
+      const insertedRow = await insertGeneratedDailyQuestion(question);
+      if (!insertedRow) {
+        logDebug(LOG_TAG, 'generated question duplicates an existing one');
+        break;
+      }
+      inserted += 1;
+    } catch (error) {
+      logDebug(LOG_TAG, 'daily question generation failed', error);
+      break;
+    }
+  }
+  if (inserted > 0) {
+    logDebug(LOG_TAG, `generated ${inserted} new daily question(s)`);
+  }
+  return inserted;
+}
+
+async function topUpPoolIfThin(profile: Profile | null): Promise<void> {
+  if (!profile) {
+    return;
+  }
+  try {
+    const unanswered = await countUnansweredDailyQuestions();
+    if (unanswered < DAILY_WINDOW_DAYS) {
+      await topUpQuestionPool(profile, DAILY_WINDOW_DAYS - unanswered);
+    }
+  } catch (error) {
+    logDebug(LOG_TAG, 'daily question pool top-up failed', error);
+  }
+}
+
 export async function refreshDailyNotification(
+  profile: Profile | null = null,
   hour = DEFAULT_HOUR,
   minute = DEFAULT_MINUTE,
 ): Promise<DailyQuestionRecord | null> {
   return runScheduledExclusively(async () => {
     await ensureQuestionsSeeded();
+    await topUpPoolIfThin(profile);
     const window = await getDailyQuestionWindow(DAILY_WINDOW_DAYS);
     if (window.length === 0) {
       logDebug(
@@ -255,9 +307,12 @@ export async function sendTestQuestionNotification(): Promise<DailyQuestionRecor
   }
   await ensureAndroidChannel();
   await ensureQuestionsSeeded();
-  const question = await getUnansweredDailyQuestion();
+  const question =
+    (await getUnansweredDailyQuestions(1))[0] ??
+    (await getAnsweredDailyQuestions(1))[0] ??
+    null;
   if (!question) {
-    throw new Error('No unanswered question left to send.');
+    throw new Error('No question available to send.');
   }
   await registerIosCategories([
     { id: IOS_CATEGORY_ID, question },
@@ -266,14 +321,16 @@ export async function sendTestQuestionNotification(): Promise<DailyQuestionRecor
   return question;
 }
 
-export async function enableDailyNotifications(): Promise<boolean> {
+export async function enableDailyNotifications(
+  profile: Profile | null = null,
+): Promise<boolean> {
   const granted = await ensureNotificationPermission();
   if (!granted) {
     logDebug(LOG_TAG, 'enable skipped: notification permission not granted');
     return false;
   }
   await ensureAndroidChannel();
-  await refreshDailyNotification();
+  await refreshDailyNotification(profile);
   if (Platform.OS === 'android') {
     try {
       const batteryRestricted = await notifee.isBatteryOptimizationEnabled();
