@@ -36,22 +36,23 @@ import {
 } from '../services/deviceCapabilities';
 import type { DeviceCapability } from '../services/deviceCapabilities';
 import {
-  evaluateWriting,
   ensureModelLoaded,
+  evaluateWriting,
   generateExercise as generateExerciseTutor,
   releaseModel as releaseTutorModel,
 } from '../ai/tutor';
 import type { EvaluateCallbacks, GeneratedExercise } from '../ai/tutor';
+import {
+  clearExerciseCache,
+  enqueueGeneration,
+} from '../services/exerciseCache';
 import type {
   Evaluation,
   ExerciseType,
   Profile,
 } from '../navigation/types';
-import { createExerciseBuffer } from '../services/exerciseBuffer';
-import type { ExerciseBuffer } from '../services/exerciseBuffer';
 import { ensureNotificationPermission } from '../notifications/dailyQuestion';
 import { logDebug } from '../services/debugLog';
-import { createTypeRotation } from '../utils/exercises';
 
 export type ModelState =
   | 'not-downloaded'
@@ -83,21 +84,16 @@ type ModelContextValue = {
     type?: ExerciseType,
   ) => Promise<Evaluation>;
   generatePrompt: (profile: Profile, weakSpotsSummary?: string) => Promise<string>;
-  takeExercise: (
+  generateExercise: (
     profile: Profile,
-    fallbackType: ExerciseType,
+    type: ExerciseType,
     weakSpotsSummary?: string,
   ) => Promise<GeneratedExercise>;
-  prefetchExercise: (
-    profile: Profile,
-    weakSpotsSummary?: string,
-  ) => Promise<void>;
 };
 
 const ModelContext = createContext<ModelContextValue | null>(null);
 
 export const MODEL_IDLE_RELEASE_MS = 60_000;
-export const EXERCISE_BUFFER_CAPACITY = 2;
 
 function describeError(error: unknown): string {
   if (error instanceof LowStorageError) {
@@ -126,11 +122,8 @@ export function ModelProvider({ children }: { children: ReactNode }) {
   const releaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef(0);
   const prevStateRef = useRef<ModelState>(modelState);
-  const exerciseBufferRef = useRef<ExerciseBuffer>(
-    createExerciseBuffer(EXERCISE_BUFFER_CAPACITY),
-  );
-  const rotationRef = useRef(createTypeRotation());
-  const prefetchingRef = useRef(false);
+  const modelStateRef = useRef(modelState);
+  const activeVariantRef = useRef(activeVariant);
 
   useEffect(() => {
     if (prevStateRef.current !== modelState) {
@@ -164,6 +157,30 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       console.warn('Failed to check device capabilities', error);
     }
   }, []);
+
+  const prewarmModel = useCallback(() => {
+    if (modelStateRef.current !== 'ready') {
+      return;
+    }
+    ensureModelLoaded(activeVariantRef.current)
+      .then(() => {
+        logDebug('model', 'model pre-warmed');
+      })
+      .catch(error => {
+        logDebug('model', 'pre-warm failed', error);
+      });
+  }, []);
+
+  useEffect(() => {
+    modelStateRef.current = modelState;
+    if (modelState === 'ready') {
+      prewarmModel();
+    }
+  }, [modelState, prewarmModel]);
+
+  useEffect(() => {
+    activeVariantRef.current = activeVariant;
+  }, [activeVariant]);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,99 +233,6 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [makeCallbacks, refreshCapability]);
-
-  useEffect(() => {
-    if (modelState !== 'ready') {
-      return;
-    }
-    logDebug('model', `warming up model (${activeVariant})`);
-    ensureModelLoaded(activeVariant).then(
-      () => logDebug('model', 'model warmup finished'),
-      error => {
-        logDebug(
-          'model',
-          'model warmup failed',
-          error instanceof Error ? error.message : String(error),
-        );
-      },
-    );
-  }, [modelState, activeVariant]);
-
-  const prefetchExercise = useCallback(
-    async (profile: Profile, weakSpotsSummary = '') => {
-      if (modelState !== 'ready' || prefetchingRef.current) {
-        return;
-      }
-      const buffer = exerciseBufferRef.current;
-      if (!buffer.hasCapacity()) {
-        return;
-      }
-      prefetchingRef.current = true;
-      try {
-        while (buffer.hasCapacity()) {
-          const type = rotationRef.current();
-          inFlightRef.current += 1;
-          try {
-            const generated = await generateExerciseTutor(
-              type,
-              profile,
-              weakSpotsSummary,
-            );
-            if (buffer.hasCapacity()) {
-              buffer.put(generated);
-              logDebug(
-                'model',
-                `buffered ${generated.type} exercise `
-                  + `(${buffer.size()}/${buffer.capacity})`,
-              );
-            }
-          } catch (error) {
-            logDebug(
-              'model',
-              'prefetch generation failed',
-              error instanceof Error ? error.message : String(error),
-            );
-            break;
-          } finally {
-            inFlightRef.current -= 1;
-          }
-        }
-      } finally {
-        prefetchingRef.current = false;
-      }
-    },
-    [modelState],
-  );
-
-  const takeExercise = useCallback(
-    async (
-      profile: Profile,
-      fallbackType: ExerciseType,
-      weakSpotsSummary = '',
-    ) => {
-      const buffered = exerciseBufferRef.current.take();
-      if (buffered) {
-        logDebug(
-          'model',
-          `buffer hit: ${buffered.type} `
-            + `(${exerciseBufferRef.current.size()} left)`,
-        );
-        prefetchExercise(profile, weakSpotsSummary).catch(() => {});
-        return buffered;
-      }
-      inFlightRef.current += 1;
-      try {
-        return await generateExerciseTutor(
-          fallbackType,
-          profile,
-          weakSpotsSummary,
-        );
-      } finally {
-        inFlightRef.current -= 1;
-      }
-    },
-    [prefetchExercise],
-  );
 
   const startDownloadImpl = useCallback(
     (network: NetworkChoice, variant: ModelVariant = 'full') => {
@@ -369,7 +293,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       taskRef.current?.stop();
       taskRef.current = null;
       await releaseTutorModel().catch(() => {});
-      exerciseBufferRef.current.clear();
+      clearExerciseCache();
       await deleteModelFiles(variant).catch(() => {});
       await refreshCapability();
       const remaining = await getDownloadedVariant().catch(() => null);
@@ -415,12 +339,24 @@ export function ModelProvider({ children }: { children: ReactNode }) {
     async (profile: Profile, weakSpotsSummary = '') => {
       inFlightRef.current += 1;
       try {
-        const generated = await generateExerciseTutor(
-          'paragraph',
-          profile,
-          weakSpotsSummary,
+        const generated = await enqueueGeneration(() =>
+          generateExerciseTutor('paragraph', profile, weakSpotsSummary),
         );
         return generated.prompt;
+      } finally {
+        inFlightRef.current -= 1;
+      }
+    },
+    [],
+  );
+
+  const generateExercise = useCallback(
+    async (profile: Profile, type: ExerciseType, weakSpotsSummary = '') => {
+      inFlightRef.current += 1;
+      try {
+        return await enqueueGeneration(() =>
+          generateExerciseTutor(type, profile, weakSpotsSummary),
+        );
       } finally {
         inFlightRef.current -= 1;
       }
@@ -452,13 +388,14 @@ export function ModelProvider({ children }: { children: ReactNode }) {
         scheduleRelease();
       } else if (state === 'active') {
         clearReleaseTimer();
+        prewarmModel();
       }
     });
     return () => {
       subscription.remove();
       clearReleaseTimer();
     };
-  }, []);
+  }, [prewarmModel]);
 
   const value = useMemo(
     () => ({
@@ -476,8 +413,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       deleteModel: deleteModelImpl,
       evaluate,
       generatePrompt,
-      takeExercise,
-      prefetchExercise,
+      generateExercise,
     }),
     [
       modelState,
@@ -493,8 +429,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
         deleteModelImpl,
         evaluate,
         generatePrompt,
-        takeExercise,
-        prefetchExercise,
+        generateExercise,
       ],
     );
 

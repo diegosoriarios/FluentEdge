@@ -1,9 +1,27 @@
 import {
   evaluateCapabilities,
+  readCoreCountSync,
   readTotalRamBytesSync,
 } from '../deviceCapabilities';
 
 const GB = 1_000_000_000;
+
+describe('readCoreCountSync', () => {
+  it('counts processor entries in cpuinfo', () => {
+    const cpuinfo = [
+      'processor\t: 0',
+      'BogoMIPS : 48.00',
+      'processor\t: 1',
+      'processor\t: 2',
+    ].join('\n');
+    expect(readCoreCountSync(cpuinfo)).toBe(3);
+  });
+
+  it('returns null when no processor entries exist', () => {
+    expect(readCoreCountSync('Hardware : goldfish')).toBeNull();
+    expect(readCoreCountSync('')).toBeNull();
+  });
+});
 
 describe('readTotalRamBytesSync', () => {
   it('parses MemTotal from meminfo', () => {

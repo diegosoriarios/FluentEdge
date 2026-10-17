@@ -1,10 +1,11 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
+import { StreakCard } from '../../components/StreakCard';
 import { Button, Card, Chip, SectionLabel } from '../../components/ui';
 import { colors, fonts, spacing } from '../../theme';
 import { useProfile } from '../../context/ProfileContext';
@@ -13,7 +14,11 @@ import { useSessionStats, useWeakSpots } from '../../hooks/useSessionData';
 import { GOAL_LABELS } from '../../data/prompts';
 import { getPromptForProfile } from '../../data/prompts';
 import { insertSession } from '../../data';
-import { createTypeRotation } from '../../utils/exercises';
+import { nextExerciseType } from '../../utils/exercises';
+import {
+  prefetchNextExercise,
+  takeCachedExercise,
+} from '../../services/exerciseCache';
 import { createId } from '../../utils/id';
 import type { GeneratedExercise } from '../../ai/tutor';
 import type { MainTabParamList, RootStackParamList } from '../../navigation/types';
@@ -25,30 +30,27 @@ type Props = CompositeScreenProps<
 
 export function HomeScreen({ navigation }: Props) {
   const { profile } = useProfile();
-  const { modelState, takeExercise, prefetchExercise } = useModel();
+  const { modelState, generateExercise } = useModel();
   const { stats, reload: reloadStats } = useSessionStats();
   const { summary: weakSpotsSummary, topErrorTypes, reload: reloadWeakSpots } =
     useWeakSpots();
   const [generating, setGenerating] = useState(false);
-  const rotationRef = useRef(createTypeRotation());
-
   const modelReady = modelState === 'ready';
 
   useFocusEffect(
     useCallback(() => {
       reloadStats();
-      reloadWeakSpots();
-      if (modelReady && profile) {
-        prefetchExercise(profile, weakSpotsSummary).catch(() => {});
-      }
-    }, [
-      reloadStats,
-      reloadWeakSpots,
-      modelReady,
-      profile,
-      weakSpotsSummary,
-      prefetchExercise,
-    ]),
+      let cancelled = false;
+      (async () => {
+        const summary = await reloadWeakSpots();
+        if (!cancelled && modelReady && profile) {
+          prefetchNextExercise(profile, summary).catch(() => {});
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [reloadStats, reloadWeakSpots, modelReady, profile]),
   );
 
   const startExercise = async () => {
@@ -58,17 +60,8 @@ export function HomeScreen({ navigation }: Props) {
     setGenerating(true);
     const sessionId = createId('s_');
     try {
-      let generated: GeneratedExercise;
-      try {
-        const fallbackType = rotationRef.current();
-        generated = await takeExercise(profile, fallbackType, weakSpotsSummary);
-      } catch {
-        generated = {
-          type: 'paragraph',
-          prompt: getPromptForProfile(profile),
-          exercise: null,
-        };
-      }
+      let generated =
+        takeCachedExercise(profile, weakSpotsSummary) ?? (await generateNew());
       await insertSession(
         sessionId,
         generated.prompt,
@@ -78,6 +71,25 @@ export function HomeScreen({ navigation }: Props) {
       navigation.navigate('Exercise', { sessionId });
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const generateNew = async (): Promise<GeneratedExercise> => {
+    if (!profile) {
+      throw new Error('Profile is missing.');
+    }
+    try {
+      return await generateExercise(
+        profile,
+        nextExerciseType(),
+        weakSpotsSummary,
+      );
+    } catch {
+      return {
+        type: 'paragraph',
+        prompt: getPromptForProfile(profile),
+        exercise: null,
+      };
     }
   };
 
@@ -91,16 +103,15 @@ export function HomeScreen({ navigation }: Props) {
           </Text>
         </Card>
       ) : null}
+      <StreakCard
+        streakDays={stats.streakDays}
+        practiceDays={stats.practiceDays}
+        style={styles.streakCard}
+      />
       <View style={styles.statsRow}>
         <Card style={styles.statCard}>
           <Text style={styles.statValue}>{stats.totalSessions}</Text>
           <Text style={styles.statLabel}>Sessions</Text>
-        </Card>
-        <Card style={styles.statCard}>
-          <Text style={[styles.statValue, { color: colors.streak }]}>
-            {stats.streakDays}
-          </Text>
-          <Text style={styles.statLabel}>Day streak</Text>
         </Card>
         <Card style={styles.statCard}>
           <Text style={[styles.statValue, { color: colors.primary }]}>
@@ -177,6 +188,9 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  streakCard: {
     marginBottom: spacing.md,
   },
   statCard: {

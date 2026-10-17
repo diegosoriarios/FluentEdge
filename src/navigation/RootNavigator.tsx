@@ -11,7 +11,7 @@ import {
 import {
   enableDailyNotifications,
   parsePressAction,
-  refreshDailyQueue,
+  refreshDailyNotification,
 } from '../notifications/dailyQuestion';
 import { refreshStudyReminder } from '../notifications/studyReminder';
 import { logDebug } from '../services/debugLog';
@@ -119,9 +119,9 @@ export function RootNavigator() {
     const init = async () => {
       if (notificationsEnabled) {
         try {
-          await refreshDailyQueue(profile ?? null);
+          await refreshDailyNotification(profile ?? null);
         } catch (error) {
-          logDebug('notifications', 'failed to refresh daily queue', error);
+          logDebug('notifications', 'failed to refresh daily notification', error);
         }
       }
       if (reminderEnabled) {

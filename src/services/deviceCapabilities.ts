@@ -24,6 +24,38 @@ export function readTotalRamBytesSync(meminfo: string): number | null {
   return Number(match[1]) * 1024;
 }
 
+export function readCoreCountSync(cpuinfo: string): number | null {
+  const matches = cpuinfo.match(/^processor\s*:/gm);
+  return matches == null ? null : matches.length;
+}
+
+export async function readCoreCount(): Promise<number | null> {
+  if (Platform.OS !== 'android') {
+    return null;
+  }
+  try {
+    const cpuinfo = await RNFS.readFile('/proc/cpuinfo', 'utf8');
+    return readCoreCountSync(cpuinfo);
+  } catch {
+    return null;
+  }
+}
+
+export const DEFAULT_N_THREADS = 4;
+export const IOS_N_THREADS = 6;
+export const MAX_N_THREADS = 8;
+
+export async function resolveNThreads(): Promise<number> {
+  if (Platform.OS === 'ios') {
+    return IOS_N_THREADS;
+  }
+  const cores = await readCoreCount();
+  if (cores == null) {
+    return DEFAULT_N_THREADS;
+  }
+  return Math.min(MAX_N_THREADS, Math.max(DEFAULT_N_THREADS, cores));
+}
+
 export async function readTotalRamBytes(): Promise<number | null> {
   if (Platform.OS !== 'android') {
     return null;

@@ -1,9 +1,11 @@
 import type { Profile } from '../../navigation/types';
+import { initLlama } from 'llama.rn';
 import {
   buildExerciseGenSystemPrompt,
   buildGradingSystemPrompt,
   buildPromptGenSystemPrompt,
   cleanGeneratedPrompt,
+  ensureModelLoaded,
   filterPhantomCorrections,
   isEvaluation,
   isLowQualityPrompt,
@@ -12,6 +14,16 @@ import {
   parseMultipleChoice,
   sanitizeForGrading,
 } from '../tutor';
+
+jest.mock('llama.rn', () => ({
+  initLlama: jest.fn(),
+}));
+
+jest.mock('../../services/modelManager', () => ({
+  getVerifiedModelPath: jest.fn(() =>
+    Promise.resolve('/tmp/documents/model.gguf'),
+  ),
+}));
 
 const PROFILE: Profile = {
   level: 'B1',
@@ -528,5 +540,38 @@ describe('buildGradingSystemPrompt short-answer variant', () => {
     const prompt = buildGradingSystemPrompt(PROFILE, '', 'paragraph');
     expect(prompt).toContain('full rewrite, same meaning');
     expect(prompt).not.toContain('answers the question correctly');
+  });
+});
+
+describe('ensureModelLoaded', () => {
+  const initLlamaMock = jest.mocked(initLlama);
+  const mockContext = { release: jest.fn() };
+
+  beforeEach(() => {
+    initLlamaMock.mockReset();
+    initLlamaMock.mockResolvedValue(
+      mockContext as unknown as Awaited<ReturnType<typeof initLlama>>,
+    );
+  });
+
+  it('offloads to gpu on ios and falls back to cpu when it fails', async () => {
+    initLlamaMock.mockRejectedValueOnce(new Error('metal unavailable'));
+    const context = await ensureModelLoaded('full');
+    expect(context).toBeDefined();
+    expect(initLlamaMock).toHaveBeenCalledTimes(2);
+    expect(initLlamaMock.mock.calls[0][0].n_gpu_layers).toBeGreaterThan(0);
+    expect(initLlamaMock.mock.calls[1][0].n_gpu_layers).toBe(0);
+    for (const [options] of initLlamaMock.mock.calls) {
+      expect(typeof options.n_threads).toBe('number');
+      expect(options.n_threads).toBeGreaterThan(0);
+      expect(options.n_ctx).toBeGreaterThan(0);
+    }
+  });
+
+  it('reuses the cached context on subsequent calls', async () => {
+    await ensureModelLoaded('full');
+    const callsBefore = initLlamaMock.mock.calls.length;
+    await ensureModelLoaded('full');
+    expect(initLlamaMock).toHaveBeenCalledTimes(callsBefore);
   });
 });

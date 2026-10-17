@@ -186,6 +186,7 @@ export type SessionStatsData = {
   totalSessions: number;
   lastSessionAt: number | null;
   streakDays: number;
+  practiceDays: string[];
 };
 
 export function localDayKey(timestamp: number): string {
@@ -212,6 +213,22 @@ export function computeStreakDays(
   return streak;
 }
 
+export function lastNDaysActivity(
+  days: string[],
+  n: number,
+  now = Date.now(),
+): boolean[] {
+  const unique = new Set(days);
+  const activity: boolean[] = [];
+  const cursor = new Date(now);
+  cursor.setDate(cursor.getDate() - (n - 1));
+  for (let i = 0; i < n; i += 1) {
+    activity.push(unique.has(localDayKey(cursor.getTime())));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return activity;
+}
+
 export async function getSessionStats(): Promise<SessionStatsData> {
   const db = await getDb();
   const [totals] = await db.executeSql(
@@ -232,5 +249,6 @@ export async function getSessionStats(): Promise<SessionStatsData> {
     totalSessions: Number(row?.total ?? 0),
     lastSessionAt: row?.last_at ?? null,
     streakDays: computeStreakDays(days),
+    practiceDays: days,
   };
 }

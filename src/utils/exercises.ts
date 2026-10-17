@@ -31,3 +31,9 @@ export function createTypeRotation(
     return bag.pop() as ExerciseType;
   };
 }
+
+const sharedRotation = createTypeRotation();
+
+export function nextExerciseType(): ExerciseType {
+  return sharedRotation();
+}
