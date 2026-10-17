@@ -17,7 +17,6 @@ import type {
   MultipleChoiceExercise,
   Profile,
 } from '../navigation/types';
-
 export class ModelInitError extends Error {}
 
 export class EvaluationError extends Error {}
@@ -26,7 +25,8 @@ export class PromptGenerationError extends Error {}
 
 const PROMPT_GEN_TEMPERATURE = 0.7;
 const PROMPT_GEN_N_PREDICT = 128;
-const MCQ_N_PREDICT = 256;
+const MCQ_N_PREDICT = 180;
+const MCQ_TEMPERATURE = 0.5;
 
 export const EVALUATION_JSON_SCHEMA = {
   type: 'object',
@@ -570,7 +570,7 @@ export async function generateExercise(
         {
           messages,
           n_predict: MCQ_N_PREDICT,
-          temperature: PROMPT_GEN_TEMPERATURE,
+          temperature: MCQ_TEMPERATURE,
           response_format: {
             type: 'json_schema',
             json_schema: { schema: MULTIPLE_CHOICE_JSON_SCHEMA },
@@ -627,4 +627,16 @@ export async function generateWritingPrompt(
 ): Promise<string> {
   const generated = await generateExercise('paragraph', profile, weakSpotsSummary);
   return generated.prompt;
+}
+
+export async function generateDailyQuestion(
+  profile: Profile,
+  weakSpotsSummary = '',
+): Promise<MultipleChoiceExercise | null> {
+  const generated = await generateExercise(
+    'multiple_choice',
+    profile,
+    weakSpotsSummary,
+  );
+  return generated.exercise;
 }

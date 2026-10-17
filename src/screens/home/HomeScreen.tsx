@@ -25,21 +25,31 @@ type Props = CompositeScreenProps<
 
 export function HomeScreen({ navigation }: Props) {
   const { profile } = useProfile();
-  const { modelState, generateExercise } = useModel();
+  const { modelState, takeExercise, prefetchExercise } = useModel();
   const { stats, reload: reloadStats } = useSessionStats();
   const { summary: weakSpotsSummary, topErrorTypes, reload: reloadWeakSpots } =
     useWeakSpots();
   const [generating, setGenerating] = useState(false);
   const rotationRef = useRef(createTypeRotation());
 
+  const modelReady = modelState === 'ready';
+
   useFocusEffect(
     useCallback(() => {
       reloadStats();
       reloadWeakSpots();
-    }, [reloadStats, reloadWeakSpots]),
+      if (modelReady && profile) {
+        prefetchExercise(profile, weakSpotsSummary).catch(() => {});
+      }
+    }, [
+      reloadStats,
+      reloadWeakSpots,
+      modelReady,
+      profile,
+      weakSpotsSummary,
+      prefetchExercise,
+    ]),
   );
-
-  const modelReady = modelState === 'ready';
 
   const startExercise = async () => {
     if (!profile || !modelReady || generating) {
@@ -50,8 +60,8 @@ export function HomeScreen({ navigation }: Props) {
     try {
       let generated: GeneratedExercise;
       try {
-        const type = rotationRef.current();
-        generated = await generateExercise(profile, type, weakSpotsSummary);
+        const fallbackType = rotationRef.current();
+        generated = await takeExercise(profile, fallbackType, weakSpotsSummary);
       } catch {
         generated = {
           type: 'paragraph',

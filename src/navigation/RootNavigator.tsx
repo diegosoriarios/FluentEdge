@@ -11,7 +11,7 @@ import {
 import {
   enableDailyNotifications,
   parsePressAction,
-  refreshDailyNotification,
+  refreshDailyQueue,
 } from '../notifications/dailyQuestion';
 import { refreshStudyReminder } from '../notifications/studyReminder';
 import { logDebug } from '../services/debugLog';
@@ -98,7 +98,7 @@ export function RootNavigator() {
             'notifications',
             'permission already granted but never opted in — enabling daily notifications',
           );
-          const ok = await enableDailyNotifications();
+          const ok = await enableDailyNotifications(profile);
           if (!cancelled) {
             await saveProfile({ ...profile, notificationsEnabled: ok });
           }
@@ -119,9 +119,9 @@ export function RootNavigator() {
     const init = async () => {
       if (notificationsEnabled) {
         try {
-          await refreshDailyNotification();
+          await refreshDailyQueue(profile ?? null);
         } catch (error) {
-          logDebug('notifications', 'failed to refresh daily notification', error);
+          logDebug('notifications', 'failed to refresh daily queue', error);
         }
       }
       if (reminderEnabled) {
