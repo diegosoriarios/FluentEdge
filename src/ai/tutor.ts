@@ -397,6 +397,35 @@ export function parseMultipleChoice(raw: string): MultipleChoiceExercise {
 const llamaContexts = new Map<ModelVariant, LlamaContext>();
 const initPromises = new Map<ModelVariant, Promise<LlamaContext>>();
 
+let activeGenerations = 0;
+let generationQueue: Promise<unknown> = Promise.resolve();
+
+export function isGenerationInFlight(): boolean {
+  return activeGenerations > 0;
+}
+
+function runGenerationExclusive<T>(
+  variant: ModelVariant,
+  task: (context: LlamaContext) => Promise<T>,
+): Promise<T> {
+  const result = generationQueue.then(() =>
+    (async () => {
+      activeGenerations += 1;
+      try {
+        const context = await ensureModelLoaded(variant);
+        return await task(context);
+      } finally {
+        activeGenerations -= 1;
+      }
+    })(),
+  );
+  generationQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
 const IOS_N_GPU_LAYERS = 99;
 
 function formatInitError(cause: unknown): ModelInitError {
@@ -416,8 +445,11 @@ async function createContext(
     model: modelPath,
     n_ctx: N_CTX,
     n_threads: nThreads,
-    use_mlock: true,
+    use_mlock: Platform.OS !== 'android',
     n_gpu_layers: nGpuLayers,
+    flash_attn_type: 'off',
+    cache_type_k: 'f16',
+    cache_type_v: 'f16',
   });
 }
 
@@ -463,6 +495,10 @@ export async function ensureModelLoaded(
 }
 
 export async function releaseModel(): Promise<void> {
+  if (isGenerationInFlight()) {
+    logDebug('ai', 'release skipped, generation in flight');
+    return;
+  }
   const contexts = [...llamaContexts.entries()];
   llamaContexts.clear();
   initPromises.clear();
@@ -500,55 +536,56 @@ export async function evaluateWriting(
 ): Promise<Evaluation> {
   const variant: ModelVariant = profile.modelVariant ?? 'full';
   callbacks?.onStage?.('loading-model');
-  const context = await ensureModelLoaded(variant);
-  callbacks?.onStage?.('grading');
-  const messages = [
-    {
-      role: 'system' as const,
-      content: buildGradingSystemPrompt(profile, weakSpotsSummary, type),
-    },
-    {
-      role: 'user' as const,
-      content: `Writing prompt: ${prompt}\n\nResponse to review:\n${sanitizeForGrading(response)}`,
-    },
-  ];
-
-  let lastError: unknown = null;
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    let tokenCount = 0;
-    const result = await context.completion(
+  return runGenerationExclusive(variant, async context => {
+    callbacks?.onStage?.('grading');
+    const messages = [
       {
-        messages,
-        n_predict: N_PREDICT,
-        temperature: TEMPERATURE,
-        response_format: {
-          type: 'json_schema',
-          json_schema: { schema: EVALUATION_JSON_SCHEMA },
+        role: 'system' as const,
+        content: buildGradingSystemPrompt(profile, weakSpotsSummary, type),
+      },
+      {
+        role: 'user' as const,
+        content: `Writing prompt: ${prompt}\n\nResponse to review:\n${sanitizeForGrading(response)}`,
+      },
+    ];
+
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      let tokenCount = 0;
+      const result = await context.completion(
+        {
+          messages,
+          n_predict: N_PREDICT,
+          temperature: TEMPERATURE,
+          response_format: {
+            type: 'json_schema',
+            json_schema: { schema: EVALUATION_JSON_SCHEMA },
+          },
         },
-      },
-      () => {
-        tokenCount += 1;
-        callbacks?.onPartial?.(tokenCount);
-      },
-    );
-    try {
-      return filterPhantomCorrections(parseEvaluation(result.text));
-    } catch (error) {
-      lastError = error;
-      logDebug(
-        'ai',
-        `evaluation parse failed (attempt ${attempt + 1}): ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-        `raw output: ${result.text.slice(0, 200)}`,
+        () => {
+          tokenCount += 1;
+          callbacks?.onPartial?.(tokenCount);
+        },
       );
+      try {
+        return filterPhantomCorrections(parseEvaluation(result.text));
+      } catch (error) {
+        lastError = error;
+        logDebug(
+          'ai',
+          `evaluation parse failed (attempt ${attempt + 1}): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          `raw output: ${result.text.slice(0, 200)}`,
+        );
+      }
     }
-  }
-  throw new EvaluationError(
-    `Could not parse a valid evaluation: ${
-      lastError instanceof Error ? lastError.message : String(lastError)
-    }`,
-  );
+    throw new EvaluationError(
+      `Could not parse a valid evaluation: ${
+        lastError instanceof Error ? lastError.message : String(lastError)
+      }`,
+    );
+  });
 }
 
 export function cleanGeneratedPrompt(raw: string): string {
@@ -581,75 +618,85 @@ export async function generateExercise(
   weakSpotsSummary = '',
 ): Promise<GeneratedExercise> {
   const variant: ModelVariant = profile.modelVariant ?? 'full';
-  const context = await ensureModelLoaded(variant);
-
-  if (type === 'multiple_choice') {
-    const messages = [
-      {
-        role: 'system' as const,
-        content: buildExerciseGenSystemPrompt(
-          'multiple_choice',
-          profile,
-          weakSpotsSummary,
-        ),
-      },
-      { role: 'user' as const, content: "Write today's practice question." },
-    ];
-    let lastError: unknown = null;
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      const result = await context.completion(
+  return runGenerationExclusive(variant, async context => {
+    if (type === 'multiple_choice') {
+      const messages = [
         {
-          messages,
-          n_predict: MCQ_N_PREDICT,
-          temperature: MCQ_TEMPERATURE,
-          response_format: {
-            type: 'json_schema',
-            json_schema: { schema: MULTIPLE_CHOICE_JSON_SCHEMA },
-          },
+          role: 'system' as const,
+          content: buildExerciseGenSystemPrompt(
+            'multiple_choice',
+            profile,
+            weakSpotsSummary,
+          ),
         },
-        undefined,
-      );
-      try {
-        const exercise = parseMultipleChoice(result.text);
-        return { type: 'multiple_choice', prompt: exercise.question, exercise };
-      } catch (error) {
-        lastError = error;
-        logDebug(
-          'ai',
-          `mcq generation failed (attempt ${attempt + 1}): ${formatUnknown(error)}`,
-          `raw output: ${result.text.slice(0, 200)}`,
+        { role: 'user' as const, content: "Write today's practice question." },
+      ];
+      let lastError: unknown = null;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const result = await context.completion(
+          {
+            messages,
+            n_predict: MCQ_N_PREDICT,
+            temperature: MCQ_TEMPERATURE,
+            response_format: {
+              type: 'json_schema',
+              json_schema: { schema: MULTIPLE_CHOICE_JSON_SCHEMA },
+            },
+          },
+          undefined,
         );
+        try {
+          const exercise = parseMultipleChoice(result.text);
+          return {
+            type: 'multiple_choice',
+            prompt: exercise.question,
+            exercise,
+          };
+        } catch (error) {
+          lastError = error;
+          logDebug(
+            'ai',
+            `mcq generation failed (attempt ${attempt + 1}): ${formatUnknown(error)}`,
+            `raw output: ${result.text.slice(0, 200)}`,
+          );
+        }
       }
+      logDebug(
+        'ai',
+        `mcq generation failed after ${MAX_ATTEMPTS} attempts, degrading to short answer: ${formatUnknown(lastError)}`,
+      );
     }
-    logDebug(
-      'ai',
-      `mcq generation failed after ${MAX_ATTEMPTS} attempts, degrading to short answer: ${formatUnknown(lastError)}`,
-    );
-  }
 
-  const genType: ExerciseType =
-    type === 'multiple_choice' ? 'short_answer' : type;
-  const result = await context.completion({
-    messages: [
-      {
-        role: 'system' as const,
-        content: buildExerciseGenSystemPrompt(genType, profile, weakSpotsSummary),
-      },
-      { role: 'user' as const, content: "Write today's practice prompt." },
-    ],
-    n_predict: PROMPT_GEN_N_PREDICT,
-    temperature: PROMPT_GEN_TEMPERATURE,
+    const genType: ExerciseType =
+      type === 'multiple_choice' ? 'short_answer' : type;
+    const result = await context.completion({
+      messages: [
+        {
+          role: 'system' as const,
+          content: buildExerciseGenSystemPrompt(
+            genType,
+            profile,
+            weakSpotsSummary,
+          ),
+        },
+        { role: 'user' as const, content: "Write today's practice prompt." },
+      ],
+      n_predict: PROMPT_GEN_N_PREDICT,
+      temperature: PROMPT_GEN_TEMPERATURE,
+    });
+    const promptText = cleanGeneratedPrompt(result.text);
+    if (promptText.length === 0) {
+      throw new PromptGenerationError(
+        'The model returned an empty practice prompt.',
+      );
+    }
+    if (isLowQualityPrompt(promptText)) {
+      throw new PromptGenerationError(
+        'The model returned a fill-in-the-blank or multiple-choice prompt.',
+      );
+    }
+    return { type: genType, prompt: promptText, exercise: null };
   });
-  const promptText = cleanGeneratedPrompt(result.text);
-  if (promptText.length === 0) {
-    throw new PromptGenerationError('The model returned an empty practice prompt.');
-  }
-  if (isLowQualityPrompt(promptText)) {
-    throw new PromptGenerationError(
-      'The model returned a fill-in-the-blank or multiple-choice prompt.',
-    );
-  }
-  return { type: genType, prompt: promptText, exercise: null };
 }
 
 export async function generateWritingPrompt(

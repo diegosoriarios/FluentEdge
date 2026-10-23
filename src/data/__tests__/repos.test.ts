@@ -6,6 +6,7 @@ import {
 import {
   computeStreakDays,
   deleteSession,
+  getAnsweredDailyQuestionStats,
   getAnsweredDailyQuestions,
   getDailyQuestionWindow,
   getRecentErrorTypeLists,
@@ -15,6 +16,7 @@ import {
   insertGeneratedDailyQuestion,
   insertSession,
   lastNDaysActivity,
+  listAnsweredDailyQuestions,
   listSessions,
   setChosenIndex,
   updateSessionPrompt,
@@ -298,6 +300,50 @@ describe('dailyQuestionsRepo pool selection', () => {
     expect(
       sqlCalls().some(([sql]) => sql.startsWith('INSERT INTO daily_questions')),
     ).toBe(false);
+  });
+});
+
+describe('dailyQuestionsRepo history', () => {
+  const answeredRow = (id: string, answeredAt: number) => ({
+    id,
+    question: `Question ${id}?`,
+    options_json: JSON.stringify(['a', 'b', 'c']),
+    answer_index: 1,
+    explanation: 'Because.',
+    chosen_index: 0,
+    answered_at: answeredAt,
+    viewed_at: answeredAt,
+  });
+
+  it('lists answered questions newest first and detects hasMore', async () => {
+    const rows = Array.from({ length: 31 }, (_, i) =>
+      answeredRow(`q${i}`, 1000 - i),
+    );
+    mockSqlResponse('ORDER BY answered_at DESC LIMIT ? OFFSET ?', rows);
+    const page = await listAnsweredDailyQuestions(30, 0);
+    expect(page.questions).toHaveLength(30);
+    expect(page.hasMore).toBe(true);
+    expect(page.questions[0].id).toBe('q0');
+    const call = sqlCalls().find(([sql]) => sql.includes('LIMIT ? OFFSET ?'));
+    expect(call?.[0]).toContain('WHERE chosen_index IS NOT NULL');
+    expect(call?.[1]).toEqual([31, 0]);
+  });
+
+  it('reports hasMore false on a short page', async () => {
+    mockSqlResponse('ORDER BY answered_at DESC LIMIT ? OFFSET ?', [
+      answeredRow('q_only', 123),
+    ]);
+    const page = await listAnsweredDailyQuestions(30, 0);
+    expect(page.questions).toHaveLength(1);
+    expect(page.hasMore).toBe(false);
+  });
+
+  it('aggregates answered totals and correct counts', async () => {
+    mockSqlResponse('SUM(CASE WHEN chosen_index = answer_index', [
+      { total: 4, correct: 3 },
+    ]);
+    const stats = await getAnsweredDailyQuestionStats();
+    expect(stats).toEqual({ total: 4, correct: 3 });
   });
 });
 

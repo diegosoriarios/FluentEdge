@@ -20,11 +20,14 @@ import { MainTabs } from './MainTabs';
 import { ExerciseScreen } from '../screens/exercise/ExerciseScreen';
 import { FeedbackScreen } from '../screens/exercise/FeedbackScreen';
 import { SessionDetailScreen } from '../screens/progress/SessionDetailScreen';
+import { QuestionHistoryScreen } from '../screens/progress/QuestionHistoryScreen';
 import { LessonScreen } from '../screens/lesson/LessonScreen';
 import type { RootStackParamList } from './types';
 import type { NavigationProp } from '@react-navigation/native';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+let initialNotificationHandled = false;
 
 export function RootNavigator() {
   const { loading, isComplete, profile, retaking, saveProfile } = useProfile();
@@ -58,6 +61,10 @@ export function RootNavigator() {
     };
 
     const handleInitialNotification = async () => {
+      if (initialNotificationHandled) {
+        return;
+      }
+      initialNotificationHandled = true;
       try {
         const initial = await notifee.getInitialNotification();
         const action = parsePressAction(initial?.pressAction?.id);
@@ -206,6 +213,11 @@ export function RootNavigator() {
             name="SessionDetail"
             component={SessionDetailScreen}
             options={{ headerShown: true, title: 'Session' }}
+          />
+          <Stack.Screen
+            name="QuestionHistory"
+            component={QuestionHistoryScreen}
+            options={{ headerShown: true, title: 'Question history' }}
           />
           <Stack.Screen
             name="Lesson"

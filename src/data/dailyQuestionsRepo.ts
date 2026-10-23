@@ -119,6 +119,47 @@ export async function getAnsweredDailyQuestions(
   return rows;
 }
 
+export type DailyQuestionPage = {
+  questions: DailyQuestionRecord[];
+  hasMore: boolean;
+};
+
+export async function listAnsweredDailyQuestions(
+  limit = 30,
+  offset = 0,
+): Promise<DailyQuestionPage> {
+  const db = await getDb();
+  const [result] = await db.executeSql(
+    'SELECT * FROM daily_questions WHERE chosen_index IS NOT NULL ORDER BY answered_at DESC LIMIT ? OFFSET ?',
+    [limit + 1, offset],
+  );
+  const questions: DailyQuestionRecord[] = [];
+  for (let i = 0; i < result.rows.length; i += 1) {
+    questions.push(rowToDailyQuestion(result.rows.item(i) as DailyQuestionRow));
+  }
+  const hasMore = questions.length > limit;
+  return { questions: questions.slice(0, limit), hasMore };
+}
+
+export type AnsweredDailyQuestionStats = {
+  total: number;
+  correct: number;
+};
+
+export async function getAnsweredDailyQuestionStats(): Promise<AnsweredDailyQuestionStats> {
+  const db = await getDb();
+  const [result] = await db.executeSql(
+    'SELECT COUNT(*) AS total, SUM(CASE WHEN chosen_index = answer_index THEN 1 ELSE 0 END) AS correct FROM daily_questions WHERE chosen_index IS NOT NULL',
+  );
+  const row = result.rows.item(0) as
+    | { total: number | null; correct: number | null }
+    | null;
+  return {
+    total: row?.total ?? 0,
+    correct: row?.correct ?? 0,
+  };
+}
+
 export async function hasDailyQuestionText(question: string): Promise<boolean> {
   const db = await getDb();
   const [result] = await db.executeSql(

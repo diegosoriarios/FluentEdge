@@ -83,19 +83,33 @@ type ChipProps = {
   label: string;
   selected?: boolean;
   onPress?: () => void;
+  tone?: 'default' | 'success' | 'danger';
 };
 
-export function Chip({ label, selected = false, onPress }: ChipProps) {
+export function Chip({
+  label,
+  selected = false,
+  onPress,
+  tone = 'default',
+}: ChipProps) {
   return (
     <Pressable
       onPress={onPress}
       disabled={!onPress}
       style={({ pressed }) => [
         styles.chip,
+        tone === 'success' && styles.chipSuccess,
+        tone === 'danger' && styles.chipDanger,
         selected && styles.chipSelected,
         onPress && pressed && styles.chipPressed,
       ]}>
-      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+      <Text
+        style={[
+          styles.chipText,
+          tone === 'success' && styles.chipTextSuccess,
+          tone === 'danger' && styles.chipTextDanger,
+          selected && styles.chipTextSelected,
+        ]}>
         {label}
       </Text>
     </Pressable>
@@ -198,6 +212,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     borderColor: colors.primary,
   },
+  chipSuccess: {
+    backgroundColor: colors.successSoft,
+    borderColor: colors.success,
+  },
+  chipDanger: {
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.danger,
+  },
   chipPressed: {
     opacity: 0.75,
   },
@@ -211,6 +233,12 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '700',
     fontFamily: fonts.semibold,
+  },
+  chipTextSuccess: {
+    color: colors.success,
+  },
+  chipTextDanger: {
+    color: colors.danger,
   },
   sectionLabel: {
     fontSize: 13,

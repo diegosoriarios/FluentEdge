@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
-import { Card, Chip } from '../../components/ui';
+import { Button, Card, Chip } from '../../components/ui';
 import { colors, spacing } from '../../theme';
 import { usePaginatedSessions } from '../../hooks/useSessionData';
 import { deleteSession } from '../../data';
@@ -74,6 +74,12 @@ export function ProgressScreen({ navigation }: Props) {
 
   return (
     <Screen title="Progress" subtitle={`${sessions.length} shown${hasMore ? ' · more available' : ''}`}>
+      <Button
+        title="Question history"
+        variant="secondary"
+        onPress={() => navigation.navigate('QuestionHistory')}
+        style={styles.historyButton}
+      />
       <View style={styles.rangeRow}>
         {(Object.keys(RANGE_LABELS) as Range[]).map(key => (
           <Chip
@@ -141,6 +147,9 @@ export function ProgressScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  historyButton: {
+    marginBottom: spacing.md,
+  },
   rangeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

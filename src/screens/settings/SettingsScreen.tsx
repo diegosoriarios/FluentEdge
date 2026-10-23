@@ -72,6 +72,7 @@ export function SettingsScreen() {
   >(null);
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const [debugLogText, setDebugLogText] = useState('');
+  const [devPanelsVisible, setDevPanelsVisible] = useState(false);
   const [batteryOptimization, setBatteryOptimization] = useState<
     boolean | null
   >(null);
@@ -80,11 +81,15 @@ export function SettingsScreen() {
   >(null);
 
   useEffect(() => {
+    if (!devPanelsVisible) {
+      setDebugLogText('');
+      return undefined;
+    }
     const refresh = () => setDebugLogText(getDebugLogText());
     refresh();
     const interval = setInterval(refresh, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [devPanelsVisible]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') {
@@ -306,7 +311,9 @@ export function SettingsScreen() {
   };
 
   return (
-    <Screen title="Settings">
+    <Screen
+      title="Settings"
+      onTitleLongPress={() => setDevPanelsVisible(visible => !visible)}>
       <Card style={styles.card}>
         <SectionLabel>Profile</SectionLabel>
         <View style={styles.row}>
@@ -621,52 +628,56 @@ export function SettingsScreen() {
         </Card>
       ) : null}
 
-      <Card style={styles.card}>
-        <SectionLabel>Debug</SectionLabel>
-        <Button
-          title={
-            sendingTestNotification
-              ? 'Sending…'
-              : 'Send test question notification'
-          }
-          variant="secondary"
-          onPress={handleSendTestNotification}
-          disabled={sendingTestNotification}
-          loading={sendingTestNotification}
-        />
-        {testNotificationStatus ? (
-          <Text style={styles.debugStatus}>{testNotificationStatus}</Text>
-        ) : null}
-      </Card>
+      {devPanelsVisible ? (
+        <>
+          <Card style={styles.card}>
+            <SectionLabel>Debug</SectionLabel>
+            <Button
+              title={
+                sendingTestNotification
+                  ? 'Sending…'
+                  : 'Send test question notification'
+              }
+              variant="secondary"
+              onPress={handleSendTestNotification}
+              disabled={sendingTestNotification}
+              loading={sendingTestNotification}
+            />
+            {testNotificationStatus ? (
+              <Text style={styles.debugStatus}>{testNotificationStatus}</Text>
+            ) : null}
+          </Card>
 
-      <Card style={styles.card}>
-        <SectionLabel>Download diagnostics</SectionLabel>
-        <ScrollView style={styles.debugLogBox} nestedScrollEnabled>
-          <Text style={styles.debugLogText} selectable>
-            {debugLogText || 'No log entries yet.'}
-          </Text>
-        </ScrollView>
-        <View style={styles.buttonRow}>
-          <Button
-            title="Share logs"
-            variant="secondary"
-            onPress={handleShareLogs}
-            style={styles.half}
-          />
-          <Button
-            title="Clear"
-            variant="secondary"
-            onPress={handleClearLogs}
-            style={styles.half}
-          />
-        </View>
-      </Card>
+          <Card style={styles.card}>
+            <SectionLabel>Download diagnostics</SectionLabel>
+            <ScrollView style={styles.debugLogBox} nestedScrollEnabled>
+              <Text style={styles.debugLogText} selectable>
+                {debugLogText || 'No log entries yet.'}
+              </Text>
+            </ScrollView>
+            <View style={styles.buttonRow}>
+              <Button
+                title="Share logs"
+                variant="secondary"
+                onPress={handleShareLogs}
+                style={styles.half}
+              />
+              <Button
+                title="Clear"
+                variant="secondary"
+                onPress={handleClearLogs}
+                style={styles.half}
+              />
+            </View>
+          </Card>
 
-      <Button
-        title="Re-take diagnostic"
-        variant="danger"
-        onPress={retakeDiagnostic}
-      />
+          <Button
+            title="Re-take diagnostic"
+            variant="danger"
+            onPress={retakeDiagnostic}
+          />
+        </>
+      ) : null}
     </Screen>
   );
 }

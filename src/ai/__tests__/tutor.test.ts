@@ -1,4 +1,5 @@
 import type { Profile } from '../../navigation/types';
+import { Platform } from 'react-native';
 import { initLlama } from 'llama.rn';
 import {
   buildExerciseGenSystemPrompt,
@@ -6,12 +7,16 @@ import {
   buildPromptGenSystemPrompt,
   cleanGeneratedPrompt,
   ensureModelLoaded,
+  evaluateWriting,
   filterPhantomCorrections,
+  generateExercise,
   isEvaluation,
+  isGenerationInFlight,
   isLowQualityPrompt,
   isMultipleChoice,
   parseEvaluation,
   parseMultipleChoice,
+  releaseModel,
   sanitizeForGrading,
 } from '../tutor';
 
@@ -573,5 +578,91 @@ describe('ensureModelLoaded', () => {
     const callsBefore = initLlamaMock.mock.calls.length;
     await ensureModelLoaded('full');
     expect(initLlamaMock).toHaveBeenCalledTimes(callsBefore);
+  });
+
+  it('pins conservative context init params', async () => {
+    initLlamaMock.mockReset();
+    initLlamaMock.mockResolvedValue({
+      release: jest.fn(),
+    } as unknown as Awaited<ReturnType<typeof initLlama>>);
+    await releaseModel();
+    await ensureModelLoaded('full');
+    const options = initLlamaMock.mock.calls[0][0];
+    expect(options.flash_attn_type).toBe('off');
+    expect(options.cache_type_k).toBe('f16');
+    expect(options.cache_type_v).toBe('f16');
+    expect(options.use_mlock).toBe(Platform.OS !== 'android');
+  });
+});
+
+describe('generation serialization and release guard', () => {
+  const initLlamaMock = jest.mocked(initLlama);
+  let completionMock: jest.Mock;
+  let contextMock: { release: jest.Mock; completion: jest.Mock };
+
+  const flushAsync = async () => {
+    await new Promise<void>(resolve => setTimeout(() => resolve(), 0));
+    await new Promise<void>(resolve => setTimeout(() => resolve(), 0));
+  };
+
+  beforeEach(async () => {
+    initLlamaMock.mockReset();
+    completionMock = jest.fn(() =>
+      Promise.resolve({ text: JSON.stringify(VALID_EVALUATION) }),
+    );
+    contextMock = {
+      release: jest.fn(() => Promise.resolve()),
+      completion: completionMock,
+    };
+    initLlamaMock.mockResolvedValue(
+      contextMock as unknown as Awaited<ReturnType<typeof initLlama>>,
+    );
+    await releaseModel();
+  });
+
+  it('skips release while a completion is in flight', async () => {
+    let resolveCompletion!: (value: { text: string }) => void;
+    completionMock.mockImplementationOnce(
+      () =>
+        new Promise<{ text: string }>(resolve => {
+          resolveCompletion = resolve;
+        }),
+    );
+
+    const pending = evaluateWriting(PROFILE, 'Write about your day.', 'I goed home.');
+    await flushAsync();
+    expect(isGenerationInFlight()).toBe(true);
+
+    await releaseModel();
+    expect(contextMock.release).not.toHaveBeenCalled();
+
+    resolveCompletion({ text: JSON.stringify(VALID_EVALUATION) });
+    const evaluation = await pending;
+    expect(evaluation.has_errors).toBe(true);
+    await flushAsync();
+    expect(isGenerationInFlight()).toBe(false);
+
+    await releaseModel();
+    expect(contextMock.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('serializes overlapping generations on one context', async () => {
+    let inside = false;
+    let overlapped = false;
+    completionMock.mockImplementation(async () => {
+      if (inside) {
+        overlapped = true;
+      }
+      inside = true;
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 5));
+      inside = false;
+      return { text: JSON.stringify(VALID_EVALUATION) };
+    });
+
+    await Promise.all([
+      evaluateWriting(PROFILE, 'Describe your routine.', 'I go to work.'),
+      generateExercise('paragraph', PROFILE),
+    ]);
+    expect(overlapped).toBe(false);
   });
 });

@@ -39,6 +39,7 @@ import {
   ensureModelLoaded,
   evaluateWriting,
   generateExercise as generateExerciseTutor,
+  isGenerationInFlight,
   releaseModel as releaseTutorModel,
 } from '../ai/tutor';
 import type { EvaluateCallbacks, GeneratedExercise } from '../ai/tutor';
@@ -94,6 +95,7 @@ type ModelContextValue = {
 const ModelContext = createContext<ModelContextValue | null>(null);
 
 export const MODEL_IDLE_RELEASE_MS = 60_000;
+export const MODEL_RELEASE_RETRY_MS = 15_000;
 
 function describeError(error: unknown): string {
   if (error instanceof LowStorageError) {
@@ -120,7 +122,6 @@ export function ModelProvider({ children }: { children: ReactNode }) {
     useState<DeviceCapability | null>(null);
   const taskRef = useRef<ManagedDownload | null>(null);
   const releaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inFlightRef = useRef(0);
   const prevStateRef = useRef<ModelState>(modelState);
   const modelStateRef = useRef(modelState);
   const activeVariantRef = useRef(activeVariant);
@@ -318,48 +319,33 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       callbacks?: EvaluateCallbacks,
       type: ExerciseType = 'paragraph',
     ) => {
-      inFlightRef.current += 1;
-      try {
-        return await evaluateWriting(
-          profile,
-          prompt,
-          response,
-          weakSpotsSummary,
-          callbacks,
-          type,
-        );
-      } finally {
-        inFlightRef.current -= 1;
-      }
+      return evaluateWriting(
+        profile,
+        prompt,
+        response,
+        weakSpotsSummary,
+        callbacks,
+        type,
+      );
     },
     [],
   );
 
   const generatePrompt = useCallback(
     async (profile: Profile, weakSpotsSummary = '') => {
-      inFlightRef.current += 1;
-      try {
-        const generated = await enqueueGeneration(() =>
-          generateExerciseTutor('paragraph', profile, weakSpotsSummary),
-        );
-        return generated.prompt;
-      } finally {
-        inFlightRef.current -= 1;
-      }
+      const generated = await enqueueGeneration(() =>
+        generateExerciseTutor('paragraph', profile, weakSpotsSummary),
+      );
+      return generated.prompt;
     },
     [],
   );
 
   const generateExercise = useCallback(
     async (profile: Profile, type: ExerciseType, weakSpotsSummary = '') => {
-      inFlightRef.current += 1;
-      try {
-        return await enqueueGeneration(() =>
-          generateExerciseTutor(type, profile, weakSpotsSummary),
-        );
-      } finally {
-        inFlightRef.current -= 1;
-      }
+      return enqueueGeneration(() =>
+        generateExerciseTutor(type, profile, weakSpotsSummary),
+      );
     },
     [],
   );
@@ -371,17 +357,20 @@ export function ModelProvider({ children }: { children: ReactNode }) {
         releaseTimerRef.current = null;
       }
     };
-    const scheduleRelease = () => {
+    const scheduleRelease = (delay: number = MODEL_IDLE_RELEASE_MS) => {
       if (releaseTimerRef.current != null) {
         return;
       }
       releaseTimerRef.current = setTimeout(() => {
         releaseTimerRef.current = null;
-        if (inFlightRef.current === 0) {
-          logDebug('ai', 'idle timeout reached, releasing model');
-          releaseTutorModel().catch(() => {});
+        if (isGenerationInFlight()) {
+          logDebug('ai', 'release deferred, generation in flight');
+          scheduleRelease(MODEL_RELEASE_RETRY_MS);
+          return;
         }
-      }, MODEL_IDLE_RELEASE_MS);
+        logDebug('ai', 'idle timeout reached, releasing model');
+        releaseTutorModel().catch(() => {});
+      }, delay);
     };
     const subscription = AppState.addEventListener('change', state => {
       if (state.match('background')) {

@@ -3,9 +3,11 @@ import {
   getRecentErrorTypeLists,
   getRecentSessions,
   getSessionStats,
+  listAnsweredDailyQuestions,
   listSessions,
 } from '../data';
 import type { SessionStatsData } from '../data';
+import type { DailyQuestionRecord } from '../data/questions';
 import { normalizeErrorType, summarizeWeakSpotsFromLists } from '../ai/adaptive';
 import type { SessionSummary } from '../navigation/types';
 
@@ -132,4 +134,48 @@ export function usePaginatedSessions() {
   }, [reload]);
 
   return { sessions, loading, loadingMore, hasMore, reload, loadMore };
+}
+
+export function useQuestionHistory() {
+  const [questions, setQuestions] = useState<DailyQuestionRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+
+  const reload = useCallback(async () => {
+    try {
+      const page = await listAnsweredDailyQuestions(PAGE_SIZE, 0);
+      setQuestions(page.questions);
+      setHasMore(page.hasMore);
+    } catch (error) {
+      console.warn('Failed to load question history', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) {
+      return;
+    }
+    setLoadingMore(true);
+    try {
+      const page = await listAnsweredDailyQuestions(
+        PAGE_SIZE,
+        questions.length,
+      );
+      setQuestions(prev => [...prev, ...page.questions]);
+      setHasMore(page.hasMore);
+    } catch (error) {
+      console.warn('Failed to load more questions', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, questions.length]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  return { questions, loading, loadingMore, hasMore, reload, loadMore };
 }

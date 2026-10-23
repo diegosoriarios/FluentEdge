@@ -1,5 +1,11 @@
 import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +18,7 @@ type Props = {
   scroll?: boolean;
   avoidKeyboard?: boolean;
   style?: StyleProp<ViewStyle>;
+  onTitleLongPress?: () => void;
 };
 
 export function Screen({
@@ -21,11 +28,20 @@ export function Screen({
   scroll = true,
   avoidKeyboard = false,
   style,
+  onTitleLongPress,
 }: Props) {
   const header =
     title || subtitle ? (
       <View style={styles.header}>
-        {title ? <Text style={styles.title}>{title}</Text> : null}
+        {title ? (
+          onTitleLongPress ? (
+            <Pressable onLongPress={onTitleLongPress}>
+              <Text style={styles.title}>{title}</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.title}>{title}</Text>
+          )
+        ) : null}
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
     ) : null;
