@@ -718,3 +718,136 @@ export async function generateDailyQuestion(
   );
   return generated.exercise;
 }
+
+export type ClozeMistakeInput = {
+  errorType: string;
+  originalPhrase: string;
+  correctedPhrase: string;
+  explanation: string;
+};
+
+const MICRO_LESSON_N_PREDICT = 160;
+const MICRO_LESSON_TEMPERATURE = 0.4;
+
+export function buildClozeReviewSystemPrompt(
+  mistake: ClozeMistakeInput,
+  profile: Profile,
+): string {
+  const target = languageConfig(profile.targetLanguage);
+  const explanation = languageConfig(
+    profile.explanationLanguage ?? profile.targetLanguage,
+  );
+  return [
+    `You are ${target.tutorLabel}. Write one multiple-choice review question based on the user's own past mistake.`,
+    '',
+    'The user previously wrote a sentence with an error:',
+    `- What they wrote: "${mistake.originalPhrase}"`,
+    `- Correct version: "${mistake.correctedPhrase}"`,
+    `- Error type: ${mistake.errorType}`,
+    `- Why it was wrong: ${mistake.explanation}`,
+    '',
+    'Rules:',
+    `- The question is one sentence in ${target.name} with ___ marking the missing part, based on the corrected version.`,
+    '- Provide exactly 3 options. Exactly one option is correct.',
+    '- The correct option is the fragment that completes the sentence correctly.',
+    '- One distractor must be the user\'s original incorrect wording, adapted to fit the blank.',
+    '- The other distractor must be plausible but clearly wrong.',
+    '- Do not number or letter the options.',
+    `- explanation: one sentence in ${explanation.name} reminding the user why the correct option is right.`,
+    '',
+    'Respond ONLY with JSON matching the given schema.',
+  ].join('\n');
+}
+
+export async function generateClozeReviewQuestion(
+  mistake: ClozeMistakeInput,
+  profile: Profile,
+): Promise<MultipleChoiceExercise> {
+  const variant: ModelVariant = profile.modelVariant ?? 'full';
+  return runGenerationExclusive(variant, async context => {
+    const result = await context.completion(
+      {
+        messages: [
+          {
+            role: 'system' as const,
+            content: buildClozeReviewSystemPrompt(mistake, profile),
+          },
+          { role: 'user' as const, content: 'Write the review question.' },
+        ],
+        n_predict: MCQ_N_PREDICT,
+        temperature: MCQ_TEMPERATURE,
+        response_format: {
+          type: 'json_schema',
+          json_schema: { schema: MULTIPLE_CHOICE_JSON_SCHEMA },
+        },
+      },
+      undefined,
+    );
+    return parseMultipleChoice(result.text);
+  });
+}
+
+export function buildMicroLessonSystemPrompt(
+  errorType: string,
+  profile: Profile,
+): string {
+  const target = languageConfig(profile.targetLanguage);
+  const explanation = languageConfig(
+    profile.explanationLanguage ?? profile.targetLanguage,
+  );
+  return [
+    `You are ${target.tutorLabel}. Teach one quick lesson about a mistake type the user keeps making.`,
+    '',
+    ...buildProfileLines(profile, ''),
+    '',
+    `Mistake type: ${errorType}`,
+    '',
+    'Rules:',
+    `- Explain the rule in at most 3 short sentences, in ${explanation.name}.`,
+    `- Give exactly one example: the wrong version, then the corrected version, in ${target.name}.`,
+    '- Never greet the user and never mention that this is a lesson or exercise.',
+    '- Respond with plain text only, no headings, no bullet points.',
+  ].join('\n');
+}
+
+const microLessonCache = new Map<string, string>();
+
+function microLessonCacheKey(errorType: string, profile: Profile): string {
+  return [
+    errorType,
+    profile.level,
+    profile.targetLanguage ?? 'en',
+    profile.explanationLanguage ?? profile.targetLanguage ?? 'en',
+  ].join('|');
+}
+
+export async function generateMicroLesson(
+  errorType: string,
+  profile: Profile,
+): Promise<string> {
+  const key = microLessonCacheKey(errorType, profile);
+  const cached = microLessonCache.get(key);
+  if (cached != null) {
+    return cached;
+  }
+  const variant: ModelVariant = profile.modelVariant ?? 'full';
+  const lesson = await runGenerationExclusive(variant, async context => {
+    const result = await context.completion({
+      messages: [
+        {
+          role: 'system' as const,
+          content: buildMicroLessonSystemPrompt(errorType, profile),
+        },
+        { role: 'user' as const, content: 'Write the quick lesson.' },
+      ],
+      n_predict: MICRO_LESSON_N_PREDICT,
+      temperature: MICRO_LESSON_TEMPERATURE,
+    });
+    return cleanGeneratedPrompt(result.text);
+  });
+  if (lesson.length === 0) {
+    throw new PromptGenerationError('The model returned an empty lesson.');
+  }
+  microLessonCache.set(key, lesson);
+  return lesson;
+}

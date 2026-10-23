@@ -1,10 +1,13 @@
 import { getDb } from './db';
+import { normalizeErrorType } from '../ai/adaptive';
 import type {
   Evaluation,
   ExerciseType,
   MultipleChoiceExercise,
   SessionSummary,
 } from '../navigation/types';
+
+const DAY_MS = 86_400_000;
 
 type SessionRow = {
   id: string;
@@ -15,6 +18,7 @@ type SessionRow = {
   type?: string | null;
   exercise_json?: string | null;
   chosen_index?: number | null;
+  mistake_id?: string | null;
 };
 
 function parseExercise(json: string | null): MultipleChoiceExercise | null {
@@ -40,6 +44,7 @@ function rowToSession(row: SessionRow): SessionSummary {
     type: (row.type ?? 'paragraph') as ExerciseType,
     exercise: parseExercise(row.exercise_json ?? null),
     chosenIndex: row.chosen_index ?? null,
+    mistakeId: row.mistake_id ?? null,
   };
 }
 
@@ -48,11 +53,20 @@ export async function insertSession(
   prompt: string,
   type: ExerciseType = 'paragraph',
   exercise: MultipleChoiceExercise | null = null,
+  mistakeId: string | null = null,
 ): Promise<void> {
   const db = await getDb();
   await db.executeSql(
-    'INSERT INTO sessions (id, created_at, prompt, response, evaluation_json, type, exercise_json, chosen_index) VALUES (?, ?, ?, ?, NULL, ?, ?, NULL)',
-    [id, Date.now(), prompt, '', type, exercise ? JSON.stringify(exercise) : null],
+    'INSERT INTO sessions (id, created_at, prompt, response, evaluation_json, type, exercise_json, chosen_index, mistake_id) VALUES (?, ?, ?, ?, NULL, ?, ?, NULL, ?)',
+    [
+      id,
+      Date.now(),
+      prompt,
+      '',
+      type,
+      exercise ? JSON.stringify(exercise) : null,
+      mistakeId,
+    ],
   );
 }
 
@@ -160,7 +174,7 @@ export async function getRecentSessions(
 ): Promise<SessionSummary[]> {
   const db = await getDb();
   const [result] = await db.executeSql(
-    'SELECT id, created_at, response, evaluation_json, type, exercise_json, chosen_index FROM sessions ORDER BY created_at DESC LIMIT ?',
+    'SELECT id, created_at, response, evaluation_json, type, exercise_json, chosen_index, mistake_id FROM sessions ORDER BY created_at DESC LIMIT ?',
     [limit],
   );
   const rows: SessionSummary[] = [];
@@ -177,6 +191,7 @@ export async function getRecentSessions(
       type: (row.type ?? 'paragraph') as ExerciseType,
       exercise: parseExercise(row.exercise_json ?? null),
       chosenIndex: row.chosen_index ?? null,
+      mistakeId: row.mistake_id ?? null,
     });
   }
   return rows;
@@ -250,5 +265,50 @@ export async function getSessionStats(): Promise<SessionStatsData> {
     lastSessionAt: row?.last_at ?? null,
     streakDays: computeStreakDays(days),
     practiceDays: days,
+  };
+}
+
+export type WeeklyRecap = {
+  sessionCount: number;
+  correctionsFixed: number;
+  topErrorType: string | null;
+  streakDays: number;
+};
+
+export async function getWeeklyRecap(now = Date.now()): Promise<WeeklyRecap> {
+  const db = await getDb();
+  const [result] = await db.executeSql(
+    'SELECT evaluation_json FROM sessions WHERE created_at >= ?',
+    [now - 7 * DAY_MS],
+  );
+  let sessionCount = 0;
+  let correctionsFixed = 0;
+  const errorCounts = new Map<string, number>();
+  for (let i = 0; i < result.rows.length; i += 1) {
+    const row = result.rows.item(i) as { evaluation_json: string | null };
+    sessionCount += 1;
+    if (!row.evaluation_json) {
+      continue;
+    }
+    try {
+      const evaluation = JSON.parse(row.evaluation_json) as Evaluation;
+      for (const correction of evaluation.corrections) {
+        correctionsFixed += 1;
+        const key = normalizeErrorType(correction.error_type);
+        if (key.length > 0) {
+          errorCounts.set(key, (errorCounts.get(key) ?? 0) + 1);
+        }
+      }
+    } catch {
+      continue;
+    }  }
+  const topErrorType =
+    [...errorCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const stats = await getSessionStats();
+  return {
+    sessionCount,
+    correctionsFixed,
+    topErrorType,
+    streakDays: stats.streakDays,
   };
 }

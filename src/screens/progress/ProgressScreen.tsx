@@ -11,6 +11,7 @@ import { usePaginatedSessions } from '../../hooks/useSessionData';
 import { deleteSession } from '../../data';
 import { exerciseTypeLabel } from '../../utils/exercises';
 import { formatDateTime } from '../../utils/format';
+import { WeeklyRecapCard } from './WeeklyRecapCard';
 import type {
   MainTabParamList,
   RootStackParamList,
@@ -80,6 +81,7 @@ export function ProgressScreen({ navigation }: Props) {
         onPress={() => navigation.navigate('QuestionHistory')}
         style={styles.historyButton}
       />
+      <WeeklyRecapCard />
       <View style={styles.rangeRow}>
         {(Object.keys(RANGE_LABELS) as Range[]).map(key => (
           <Chip
@@ -108,6 +110,7 @@ export function ProgressScreen({ navigation }: Props) {
                 </Text>
                 <View style={styles.metaRow}>
                   <Chip label={exerciseTypeLabel(item.type)} />
+                  {item.mistakeId ? <Chip label="Review" /> : null}
                   <Chip
                     label={
                       item.evaluation

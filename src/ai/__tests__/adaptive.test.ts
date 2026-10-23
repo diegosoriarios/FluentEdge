@@ -32,6 +32,7 @@ function makeSession(
     type: 'paragraph',
     exercise: null,
     chosenIndex: null,
+    mistakeId: null,
   };
 }
 

@@ -61,6 +61,7 @@ export type SessionSummary = {
   type: ExerciseType;
   exercise: MultipleChoiceExercise | null;
   chosenIndex: number | null;
+  mistakeId: string | null;
 };
 
 export type RootStackParamList = {

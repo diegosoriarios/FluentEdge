@@ -75,6 +75,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
     <Screen title="Session" subtitle={formatDateTime(session.createdAt)}>
       <View style={styles.metaRow}>
         <Chip label={exerciseTypeLabel(session.type)} />
+        {session.mistakeId ? <Chip label="Review" /> : null}
       </View>
       <Card style={{ marginBottom: spacing.md }}>
         <Text style={styles.promptLabel}>Prompt</Text>

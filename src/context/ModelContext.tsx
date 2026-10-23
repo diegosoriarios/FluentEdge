@@ -38,11 +38,17 @@ import type { DeviceCapability } from '../services/deviceCapabilities';
 import {
   ensureModelLoaded,
   evaluateWriting,
+  generateClozeReviewQuestion as generateClozeReviewQuestionTutor,
   generateExercise as generateExerciseTutor,
+  generateMicroLesson as generateMicroLessonTutor,
   isGenerationInFlight,
   releaseModel as releaseTutorModel,
 } from '../ai/tutor';
-import type { EvaluateCallbacks, GeneratedExercise } from '../ai/tutor';
+import type {
+  ClozeMistakeInput,
+  EvaluateCallbacks,
+  GeneratedExercise,
+} from '../ai/tutor';
 import {
   clearExerciseCache,
   enqueueGeneration,
@@ -50,6 +56,7 @@ import {
 import type {
   Evaluation,
   ExerciseType,
+  MultipleChoiceExercise,
   Profile,
 } from '../navigation/types';
 import { ensureNotificationPermission } from '../notifications/dailyQuestion';
@@ -90,6 +97,14 @@ type ModelContextValue = {
     type: ExerciseType,
     weakSpotsSummary?: string,
   ) => Promise<GeneratedExercise>;
+  generateClozeReviewQuestion: (
+    mistake: ClozeMistakeInput,
+    profile: Profile,
+  ) => Promise<MultipleChoiceExercise>;
+  generateMicroLesson: (
+    errorType: string,
+    profile: Profile,
+  ) => Promise<string>;
 };
 
 const ModelContext = createContext<ModelContextValue | null>(null);
@@ -350,6 +365,22 @@ export function ModelProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const generateClozeReviewQuestion = useCallback(
+    async (mistake: ClozeMistakeInput, profile: Profile) => {
+      return enqueueGeneration(() =>
+        generateClozeReviewQuestionTutor(mistake, profile),
+      );
+    },
+    [],
+  );
+
+  const generateMicroLesson = useCallback(
+    async (errorType: string, profile: Profile) => {
+      return generateMicroLessonTutor(errorType, profile);
+    },
+    [],
+  );
+
   useEffect(() => {
     const clearReleaseTimer = () => {
       if (releaseTimerRef.current != null) {
@@ -403,6 +434,8 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       evaluate,
       generatePrompt,
       generateExercise,
+      generateClozeReviewQuestion,
+      generateMicroLesson,
     }),
     [
       modelState,
@@ -419,6 +452,8 @@ export function ModelProvider({ children }: { children: ReactNode }) {
         evaluate,
         generatePrompt,
         generateExercise,
+        generateClozeReviewQuestion,
+        generateMicroLesson,
       ],
     );
 

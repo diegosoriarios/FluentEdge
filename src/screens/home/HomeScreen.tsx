@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -13,7 +13,11 @@ import { useModel } from '../../context/ModelContext';
 import { useSessionStats, useWeakSpots } from '../../hooks/useSessionData';
 import { GOAL_LABELS } from '../../data/prompts';
 import { getPromptForProfile } from '../../data/prompts';
-import { insertSession } from '../../data';
+import {
+  countDueMistakes,
+  insertSession,
+  listDueMistakes,
+} from '../../data';
 import { nextExerciseType } from '../../utils/exercises';
 import {
   prefetchNextExercise,
@@ -30,16 +34,25 @@ type Props = CompositeScreenProps<
 
 export function HomeScreen({ navigation }: Props) {
   const { profile } = useProfile();
-  const { modelState, generateExercise } = useModel();
+  const {
+    modelState,
+    generateExercise,
+    generateClozeReviewQuestion,
+  } = useModel();
   const { stats, reload: reloadStats } = useSessionStats();
   const { summary: weakSpotsSummary, topErrorTypes, reload: reloadWeakSpots } =
     useWeakSpots();
   const [generating, setGenerating] = useState(false);
+  const [dueCount, setDueCount] = useState(0);
+  const [startingReview, setStartingReview] = useState(false);
   const modelReady = modelState === 'ready';
 
   useFocusEffect(
     useCallback(() => {
       reloadStats();
+      countDueMistakes()
+        .then(setDueCount)
+        .catch(() => {});
       let cancelled = false;
       (async () => {
         const summary = await reloadWeakSpots();
@@ -52,6 +65,47 @@ export function HomeScreen({ navigation }: Props) {
       };
     }, [reloadStats, reloadWeakSpots, modelReady, profile]),
   );
+
+  const startReview = async () => {
+    if (!profile || !modelReady || startingReview) {
+      return;
+    }
+    setStartingReview(true);
+    try {
+      const [mistake] = await listDueMistakes(1);
+      if (!mistake) {
+        setDueCount(0);
+        return;
+      }
+      const exercise = await generateClozeReviewQuestion(
+        {
+          errorType: mistake.errorType,
+          originalPhrase: mistake.originalPhrase,
+          correctedPhrase: mistake.correctedPhrase,
+          explanation: mistake.explanation,
+        },
+        profile,
+      );
+      const sessionId = createId('s_');
+      await insertSession(
+        sessionId,
+        exercise.question,
+        'multiple_choice',
+        exercise,
+        mistake.id,
+      );
+      navigation.navigate('Exercise', { sessionId });
+    } catch (error) {
+      Alert.alert(
+        'Review unavailable',
+        error instanceof Error
+          ? error.message
+          : 'Could not prepare the review question. Try again.',
+      );
+    } finally {
+      setStartingReview(false);
+    }
+  };
 
   const startExercise = async () => {
     if (!profile || !modelReady || generating) {
@@ -120,6 +174,24 @@ export function HomeScreen({ navigation }: Props) {
           <Text style={styles.statLabel}>Level</Text>
         </Card>
       </View>
+      {dueCount > 0 ? (
+        <Card style={styles.reviewCard}>
+          <View style={styles.reviewText}>
+            <Text style={styles.reviewTitle}>Review due</Text>
+            <Text style={styles.muted}>
+              {dueCount} mistake{dueCount === 1 ? '' : 's'}{' '}
+              {dueCount === 1 ? 'is' : 'are'} ready — fix it before it sticks.
+            </Text>
+          </View>
+          <Button
+            title={startingReview ? 'Preparing…' : 'Review'}
+            onPress={startReview}
+            disabled={!modelReady || profile == null}
+            loading={startingReview}
+            style={styles.reviewButton}
+          />
+        </Card>
+      ) : null}
       {topErrorTypes.length > 0 ? (
         <View style={styles.section}>
           <SectionLabel>Weak spots</SectionLabel>
@@ -189,6 +261,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     marginBottom: spacing.md,
+  },
+  reviewCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+    borderColor: colors.primary,
+  },
+  reviewText: {
+    flex: 1,
+    gap: 2,
+  },
+  reviewTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  reviewButton: {
+    paddingHorizontal: spacing.md,
   },
   streakCard: {
     marginBottom: spacing.md,

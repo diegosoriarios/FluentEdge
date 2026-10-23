@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
 import { Button, Card } from '../../components/ui';
@@ -8,10 +8,12 @@ import { colors, fonts, radius, spacing } from '../../theme';
 import {
   getSession,
   getRecentErrorTypeLists,
+  recordReviewOutcome,
   setChosenIndex,
   updateSessionEvaluation,
   updateSessionPrompt,
   updateSessionResponse,
+  upsertFromCorrections,
 } from '../../data';
 import { getPromptForProfile } from '../../data/prompts';
 import { useModel } from '../../context/ModelContext';
@@ -36,10 +38,10 @@ const AUTOSAVE_DEBOUNCE_MS = 1500;
 
 export function ExerciseScreen({ route, navigation }: Props) {
   const { sessionId } = route.params;
-  const { evaluate, generatePrompt } = useModel();
+  const { evaluate, generatePrompt, generateMicroLesson } = useModel();
   const { profile, saveProfile } = useProfile();
   const { sessions: recentSessions } = useRecentSessions();
-  const { summary: weakSpotsSummary } = useWeakSpots();
+  const { summary: weakSpotsSummary, topErrorTypes } = useWeakSpots();
   const [session, setSession] = useState<SessionSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
@@ -52,6 +54,8 @@ export function ExerciseScreen({ route, navigation }: Props) {
   const [inputFocused, setInputFocused] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   const [checked, setChecked] = useState(false);
+  const [focusTip, setFocusTip] = useState<string | null>(null);
+  const [tipDismissed, setTipDismissed] = useState(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSavedRef = useRef('');
@@ -83,6 +87,26 @@ export function ExerciseScreen({ route, navigation }: Props) {
       cancelled = true;
     };
   }, [sessionId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFocusTip(null);
+    setTipDismissed(false);
+    const topErrorType = topErrorTypes[0]?.type;
+    if (!session || session.type === 'multiple_choice' || !profile || !topErrorType) {
+      return undefined;
+    }
+    generateMicroLesson(topErrorType, profile)
+      .then(lesson => {
+        if (!cancelled) {
+          setFocusTip(lesson);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [session, topErrorTypes, profile, generateMicroLesson]);
 
   const clearAutosaveTimer = () => {
     if (autosaveTimerRef.current != null) {
@@ -128,6 +152,14 @@ export function ExerciseScreen({ route, navigation }: Props) {
     setChosenIndex(session.id, selected).catch(error => {
       console.warn('Failed to save answer', error);
     });
+    if (session.mistakeId) {
+      recordReviewOutcome(
+        session.mistakeId,
+        selected === session.exercise.answerIndex,
+      ).catch(error => {
+        console.warn('Failed to record review outcome', error);
+      });
+    }
   };
 
   const submit = async () => {
@@ -162,6 +194,9 @@ export function ExerciseScreen({ route, navigation }: Props) {
         session.type,
       );
       await updateSessionEvaluation(session.id, evaluation);
+      upsertFromCorrections(evaluation.corrections).catch(error => {
+        console.warn('Failed to update mistake journal', error);
+      });
       const sessionsWithCurrent = [
         { ...session, response: text, evaluation },
         ...recentSessions.filter(item => item.id !== session.id),
@@ -298,6 +333,17 @@ export function ExerciseScreen({ route, navigation }: Props) {
 
   return (
     <Screen title="Exercise" scroll={false} avoidKeyboard>
+      {focusTip && !tipDismissed ? (
+        <Card style={styles.focusTipCard}>
+          <View style={styles.focusTipHeader}>
+            <Text style={styles.focusTipLabel}>Focus tip</Text>
+            <Pressable onPress={() => setTipDismissed(true)} hitSlop={8}>
+              <Text style={styles.focusTipDismiss}>✕</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.focusTipBody}>{focusTip}</Text>
+        </Card>
+      ) : null}
       <Card style={styles.promptCard}>
         <Text style={styles.promptLabel}>
           {session.type === 'short_answer' ? 'Question' : 'Writing prompt'}
@@ -368,6 +414,32 @@ export function ExerciseScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  focusTipCard: {
+    marginBottom: spacing.md,
+    gap: spacing.xs,
+    borderColor: colors.primary,
+  },
+  focusTipHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  focusTipLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  focusTipDismiss: {
+    fontSize: 14,
+    color: colors.textMuted,
+  },
+  focusTipBody: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+  },
   promptCard: {
     marginBottom: spacing.md,
     gap: spacing.xs,

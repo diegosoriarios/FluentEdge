@@ -15,6 +15,25 @@ const MIGRATIONS: string[][] = [
     'ALTER TABLE sessions ADD COLUMN exercise_json TEXT',
     'ALTER TABLE sessions ADD COLUMN chosen_index INTEGER',
   ],
+  [
+    `CREATE TABLE IF NOT EXISTS mistakes (
+      id TEXT PRIMARY KEY,
+      dedupe_key TEXT NOT NULL UNIQUE,
+      error_type TEXT NOT NULL,
+      original_phrase TEXT NOT NULL,
+      corrected_phrase TEXT NOT NULL,
+      explanation TEXT NOT NULL,
+      quick_tip TEXT NOT NULL,
+      times_seen INTEGER NOT NULL DEFAULT 1,
+      first_seen_at INTEGER NOT NULL,
+      last_seen_at INTEGER NOT NULL,
+      interval_index INTEGER NOT NULL DEFAULT 0,
+      lapses INTEGER NOT NULL DEFAULT 0,
+      due_at INTEGER NOT NULL
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_mistakes_due ON mistakes (due_at)',
+    'ALTER TABLE sessions ADD COLUMN mistake_id TEXT',
+  ],
 ];
 
 export function getDb(): Promise<SQLite.SQLiteDatabase> {
