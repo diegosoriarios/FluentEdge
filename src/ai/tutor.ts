@@ -26,7 +26,7 @@ export class PromptGenerationError extends Error {}
 
 const PROMPT_GEN_TEMPERATURE = 0.7;
 const PROMPT_GEN_N_PREDICT = 128;
-const MCQ_N_PREDICT = 180;
+const MCQ_N_PREDICT = 256;
 const MCQ_TEMPERATURE = 0.5;
 
 export const EVALUATION_JSON_SCHEMA = {

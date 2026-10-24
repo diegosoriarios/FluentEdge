@@ -8,6 +8,7 @@ import { colors, fonts, radius, spacing } from '../../theme';
 import {
   getSession,
   getRecentErrorTypeLists,
+  listDueMistakes,
   recordReviewOutcome,
   setChosenIndex,
   updateSessionEvaluation,
@@ -20,6 +21,7 @@ import { useModel } from '../../context/ModelContext';
 import type { EvaluationStage } from '../../ai/tutor';
 import { summarizeWeakSpotsFromLists } from '../../ai/adaptive';
 import { prefetchNextExercise } from '../../services/exerciseCache';
+import { prefetchReviewQuestion } from '../../services/reviewCache';
 import { useProfile } from '../../context/ProfileContext';
 import { useRecentSessions, useWeakSpots } from '../../hooks/useSessionData';
 import { nextLevel } from '../../ai/adaptive';
@@ -156,9 +158,30 @@ export function ExerciseScreen({ route, navigation }: Props) {
       recordReviewOutcome(
         session.mistakeId,
         selected === session.exercise.answerIndex,
-      ).catch(error => {
-        console.warn('Failed to record review outcome', error);
-      });
+      )
+        .then(() => {
+          if (!profile) {
+            return undefined;
+          }
+          return listDueMistakes(1).then(([next]) => {
+            if (next) {
+              return prefetchReviewQuestion(
+                {
+                  id: next.id,
+                  errorType: next.errorType,
+                  originalPhrase: next.originalPhrase,
+                  correctedPhrase: next.correctedPhrase,
+                  explanation: next.explanation,
+                },
+                profile,
+              );
+            }
+            return undefined;
+          });
+        })
+        .catch(error => {
+          console.warn('Failed to record review outcome', error);
+        });
     }
   };
 

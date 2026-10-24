@@ -23,6 +23,10 @@ import {
   prefetchNextExercise,
   takeCachedExercise,
 } from '../../services/exerciseCache';
+import {
+  prefetchReviewQuestion,
+  takeCachedReviewQuestion,
+} from '../../services/reviewCache';
 import { createId } from '../../utils/id';
 import type { GeneratedExercise } from '../../ai/tutor';
 import type { MainTabParamList, RootStackParamList } from '../../navigation/types';
@@ -58,6 +62,19 @@ export function HomeScreen({ navigation }: Props) {
         const summary = await reloadWeakSpots();
         if (!cancelled && modelReady && profile) {
           prefetchNextExercise(profile, summary).catch(() => {});
+          const [mistake] = await listDueMistakes(1).catch(() => []);
+          if (mistake && !cancelled) {
+            prefetchReviewQuestion(
+              {
+                id: mistake.id,
+                errorType: mistake.errorType,
+                originalPhrase: mistake.originalPhrase,
+                correctedPhrase: mistake.correctedPhrase,
+                explanation: mistake.explanation,
+              },
+              profile,
+            ).catch(() => {});
+          }
         }
       })();
       return () => {
@@ -77,15 +94,15 @@ export function HomeScreen({ navigation }: Props) {
         setDueCount(0);
         return;
       }
-      const exercise = await generateClozeReviewQuestion(
-        {
-          errorType: mistake.errorType,
-          originalPhrase: mistake.originalPhrase,
-          correctedPhrase: mistake.correctedPhrase,
-          explanation: mistake.explanation,
-        },
-        profile,
-      );
+      const mistakeInput = {
+        errorType: mistake.errorType,
+        originalPhrase: mistake.originalPhrase,
+        correctedPhrase: mistake.correctedPhrase,
+        explanation: mistake.explanation,
+      };
+      const exercise =
+        takeCachedReviewQuestion(mistake.id, profile) ??
+        (await generateClozeReviewQuestion(mistakeInput, profile));
       const sessionId = createId('s_');
       await insertSession(
         sessionId,
