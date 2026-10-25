@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
 import { Button, Card } from '../../components/ui';
@@ -367,20 +367,24 @@ export function ExerciseScreen({ route, navigation }: Props) {
           <Text style={styles.focusTipBody}>{focusTip}</Text>
         </Card>
       ) : null}
-      <Card style={styles.promptCard}>
-        <Text style={styles.promptLabel}>
-          {session.type === 'short_answer' ? 'Question' : 'Writing prompt'}
-        </Text>
-        <Text style={styles.promptText}>{session.prompt}</Text>
-        <Button
-          title={regenerating ? 'New prompt…' : 'New prompt'}
-          variant="secondary"
-          onPress={regeneratePrompt}
-          disabled={evaluating || regenerating}
-          loading={regenerating}
-          style={styles.regenerateButton}
-        />
-      </Card>
+      <ScrollView
+        style={styles.promptScroll}
+        keyboardShouldPersistTaps="handled">
+        <Card style={styles.promptCard}>
+          <Text style={styles.promptLabel}>
+            {session.type === 'short_answer' ? 'Question' : 'Writing prompt'}
+          </Text>
+          <Text style={styles.promptText}>{session.prompt}</Text>
+          <Button
+            title={regenerating ? 'New prompt…' : 'New prompt'}
+            variant="secondary"
+            onPress={regeneratePrompt}
+            disabled={evaluating || regenerating}
+            loading={regenerating}
+            style={styles.regenerateButton}
+          />
+        </Card>
+      </ScrollView>
       <TextInput
         value={text}
         onChangeText={onChangeText}
@@ -462,6 +466,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
+  },
+  promptScroll: {
+    maxHeight: '35%',
   },
   promptCard: {
     marginBottom: spacing.md,
