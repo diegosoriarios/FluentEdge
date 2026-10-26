@@ -1,13 +1,20 @@
 import { useCallback, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
 import { StreakCard } from '../../components/StreakCard';
-import { Button, Card, Chip, SectionLabel } from '../../components/ui';
-import { colors, fonts, spacing } from '../../theme';
+import {
+  AppText,
+  Button,
+  Card,
+  Chip,
+  Row,
+  SectionLabel,
+} from '../../components/ui';
+import { spacing } from '../../theme';
 import { useProfile } from '../../context/ProfileContext';
 import { useModel } from '../../context/ModelContext';
 import { useSessionStats, useWeakSpots } from '../../hooks/useSessionData';
@@ -167,11 +174,13 @@ export function HomeScreen({ navigation }: Props) {
   return (
     <Screen title="FluentEdge" subtitle="Practice makes progress">
       {!modelReady ? (
-        <Card style={styles.banner}>
-          <Text style={styles.bannerTitle}>AI model not downloaded</Text>
-          <Text style={styles.bannerText}>
+        <Card tone="primary" gap={spacing.xs} style={styles.banner}>
+          <AppText variant="body" tone="primary" style={styles.accent}>
+            AI model not downloaded
+          </AppText>
+          <AppText variant="bodySmall" tone="muted">
             Download the on-device model in Settings to start practicing.
-          </Text>
+          </AppText>
         </Card>
       ) : null}
       <StreakCard
@@ -180,25 +189,27 @@ export function HomeScreen({ navigation }: Props) {
         style={styles.streakCard}
       />
       <View style={styles.statsRow}>
-        <Card style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.totalSessions}</Text>
-          <Text style={styles.statLabel}>Sessions</Text>
+        <Card gap={2} style={styles.statCard}>
+          <AppText variant="stat">{stats.totalSessions}</AppText>
+          <AppText variant="micro">Sessions</AppText>
         </Card>
-        <Card style={styles.statCard}>
-          <Text style={[styles.statValue, { color: colors.primary }]}>
+        <Card gap={2} style={styles.statCard}>
+          <AppText variant="stat" tone="primary">
             {profile?.level ?? '—'}
-          </Text>
-          <Text style={styles.statLabel}>Level</Text>
+          </AppText>
+          <AppText variant="micro">Level</AppText>
         </Card>
       </View>
       {dueCount > 0 ? (
-        <Card style={styles.reviewCard}>
+        <Card tone="primary" style={styles.reviewCard}>
           <View style={styles.reviewText}>
-            <Text style={styles.reviewTitle}>Review due</Text>
-            <Text style={styles.muted}>
+            <AppText variant="body" tone="primary" style={styles.accent}>
+              Review due
+            </AppText>
+            <AppText variant="bodySmall" tone="muted">
               {dueCount} mistake{dueCount === 1 ? '' : 's'}{' '}
               {dueCount === 1 ? 'is' : 'are'} ready — fix it before it sticks.
-            </Text>
+            </AppText>
           </View>
           <Button
             title={startingReview ? 'Preparing…' : 'Review'}
@@ -212,27 +223,29 @@ export function HomeScreen({ navigation }: Props) {
       {topErrorTypes.length > 0 ? (
         <View style={styles.section}>
           <SectionLabel>Weak spots</SectionLabel>
-          <View style={styles.chipRow}>
+          <Row wrap>
             {topErrorTypes.map(error => (
               <Chip
                 key={error.type}
                 label={`${error.type} (${error.count})`}
               />
             ))}
-          </View>
+          </Row>
         </View>
       ) : null}
-      <Card style={styles.promptCard}>
+      <Card gap={spacing.sm} style={styles.promptCard}>
         <SectionLabel>Today&apos;s focus</SectionLabel>
-        <Text style={styles.focusText}>
+        <AppText variant="heading">
           {profile ? GOAL_LABELS[profile.goal] : '—'}
-        </Text>
+        </AppText>
         {stats.totalSessions > 0 ? (
-          <Text style={styles.muted}>
+          <AppText variant="bodySmall" tone="muted">
             Last session: {formatLastSeen(stats.lastSessionAt ?? undefined)}
-          </Text>
+          </AppText>
         ) : (
-          <Text style={styles.muted}>Complete your first exercise.</Text>
+          <AppText variant="bodySmall" tone="muted">
+            Complete your first exercise.
+          </AppText>
         )}
       </Card>
       <Button
@@ -261,18 +274,10 @@ function formatLastSeen(timestamp: number | undefined): string {
 
 const styles = StyleSheet.create({
   banner: {
-    borderColor: colors.primary,
     marginBottom: spacing.md,
-    gap: spacing.xs,
   },
-  bannerTitle: {
-    fontSize: 15,
+  accent: {
     fontWeight: '600',
-    color: colors.primary,
-  },
-  bannerText: {
-    fontSize: 14,
-    color: colors.textMuted,
   },
   statsRow: {
     flexDirection: 'row',
@@ -284,16 +289,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     marginBottom: spacing.md,
-    borderColor: colors.primary,
   },
   reviewText: {
     flex: 1,
     gap: 2,
-  },
-  reviewTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.primary,
   },
   reviewButton: {
     paddingHorizontal: spacing.md,
@@ -304,36 +303,11 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     alignItems: 'center',
-    gap: 2,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.text,
-    fontFamily: fonts.extrabold,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
   },
   section: {
     marginBottom: spacing.md,
   },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
   promptCard: {
     marginBottom: spacing.lg,
-    gap: spacing.sm,
-  },
-  focusText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  muted: {
-    fontSize: 14,
-    color: colors.textMuted,
   },
 });

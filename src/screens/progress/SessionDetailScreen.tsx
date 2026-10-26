@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import { Screen } from '../../components/Screen';
-import { Button, Card, Chip } from '../../components/ui';
-import { colors, spacing } from '../../theme';
+import { AppText, Button, Card, Chip, Row } from '../../components/ui';
+import { spacing } from '../../theme';
 import { deleteSession, getSession } from '../../data';
 import { exerciseTypeLabel } from '../../utils/exercises';
 import { FeedbackContent } from '../exercise/FeedbackContent';
@@ -42,7 +42,9 @@ export function SessionDetailScreen({ route, navigation }: Props) {
   if (!session) {
     return (
       <Screen title="Session" subtitle="Session not found">
-        <Text style={{ color: colors.textMuted }}>This session no longer exists.</Text>
+        <AppText variant="body" tone="muted">
+          This session no longer exists.
+        </AppText>
       </Screen>
     );
   }
@@ -73,19 +75,19 @@ export function SessionDetailScreen({ route, navigation }: Props) {
 
   return (
     <Screen title="Session" subtitle={formatDateTime(session.createdAt)}>
-      <View style={styles.metaRow}>
+      <Row style={styles.metaRow}>
         <Chip label={exerciseTypeLabel(session.type)} />
         {session.mistakeId ? <Chip label="Review" /> : null}
-      </View>
-      <Card style={{ marginBottom: spacing.md }}>
-        <Text style={styles.promptLabel}>Prompt</Text>
-        <Text style={styles.promptText}>{session.prompt}</Text>
+      </Row>
+      <Card gap={spacing.xs} style={{ marginBottom: spacing.md }}>
+        <AppText variant="label">Prompt</AppText>
+        <AppText variant="body">{session.prompt}</AppText>
       </Card>
       {unanswered ? (
-        <Card style={styles.pendingCard}>
-          <Text style={styles.pendingText}>
+        <Card gap={spacing.sm}>
+          <AppText variant="body" tone="muted">
             You haven&apos;t answered this exercise yet.
-          </Text>
+          </AppText>
           <Button
             title="Continue exercise"
             onPress={() =>
@@ -94,10 +96,10 @@ export function SessionDetailScreen({ route, navigation }: Props) {
           />
         </Card>
       ) : unevaluated ? (
-        <Card style={styles.pendingCard}>
-          <Text style={styles.pendingText}>
+        <Card gap={spacing.sm}>
+          <AppText variant="body" tone="muted">
             This response hasn&apos;t been evaluated yet.
-          </Text>
+          </AppText>
           <Button
             title="Review & submit"
             onPress={() =>
@@ -116,31 +118,11 @@ export function SessionDetailScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  promptLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.xs,
-  },
-  promptText: {
-    fontSize: 15,
-    color: colors.text,
-    lineHeight: 21,
-  },
-  pendingCard: {
-    gap: spacing.sm,
-  },
-  pendingText: {
-    fontSize: 15,
-    color: colors.textMuted,
-  },
   deleteRow: {
     marginTop: spacing.lg,
   },
   metaRow: {
-    flexDirection: 'row',
     marginBottom: spacing.sm,
+    alignItems: 'stretch',
   },
 });

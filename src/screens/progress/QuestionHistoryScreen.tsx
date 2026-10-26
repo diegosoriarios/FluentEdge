@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { Screen } from '../../components/Screen';
-import { Card, Chip } from '../../components/ui';
-import { colors, spacing } from '../../theme';
+import { AppText, Card, Chip, Row } from '../../components/ui';
+import { spacing } from '../../theme';
 import { useQuestionHistory } from '../../hooks/useSessionData';
 import { getAnsweredDailyQuestionStats } from '../../data';
 import type { AnsweredDailyQuestionStats } from '../../data/dailyQuestionsRepo';
@@ -46,17 +46,19 @@ export function QuestionHistoryScreen({ navigation }: Props) {
         keyExtractor={item => item.id}
         renderItem={({ item }) => <HistoryItem item={item} navigation={navigation} />}
         ListEmptyComponent={
-          <Text style={styles.empty}>
+          <AppText variant="body" tone="muted" style={styles.empty}>
             {loading
               ? 'Loading…'
               : 'Answer a daily question from a notification to see it here.'}
-          </Text>
+          </AppText>
         }
         ListFooterComponent={
           hasMore ? (
             <View style={styles.footerRow}>
               {loadingMore ? (
-                <Text style={styles.empty}>Loading more…</Text>
+                <AppText variant="body" tone="muted" style={styles.empty}>
+                  Loading more…
+                </AppText>
               ) : (
                 <Chip label="Load more" onPress={loadMore} />
               )}
@@ -79,19 +81,19 @@ function HistoryItem({ item, navigation }: {
   return (
     <Pressable
       onPress={() => navigation.navigate('Lesson', { questionId: item.id })}>
-      <Card style={styles.questionCard}>
-        <Text style={styles.date}>
+      <Card gap={spacing.xs}>
+        <AppText variant="micro">
           {item.answeredAt != null ? formatDateTime(item.answeredAt) : '—'}
-        </Text>
-        <Text style={styles.prompt} numberOfLines={2}>
+        </AppText>
+        <AppText variant="body" numberOfLines={2}>
           {item.question}
-        </Text>
-        <View style={styles.metaRow}>
+        </AppText>
+        <Row wrap gap={spacing.xs}>
           <Chip
             label={correct ? 'Correct' : 'Incorrect'}
             tone={correct ? 'success' : 'danger'}
           />
-        </View>
+        </Row>
       </Card>
     </Pressable>
   );
@@ -102,25 +104,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingBottom: spacing.lg,
   },
-  questionCard: {
-    gap: spacing.xs,
-  },
-  date: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  prompt: {
-    fontSize: 15,
-    color: colors.text,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
   empty: {
-    fontSize: 15,
-    color: colors.textMuted,
     textAlign: 'center',
     marginTop: spacing.xl,
   },

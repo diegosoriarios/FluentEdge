@@ -1,8 +1,15 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Card, Chip, SectionLabel } from '../../components/ui';
-import { AnswerChoices } from '../../components/AnswerChoices';
-import { colors, fonts, radius, spacing } from '../../theme';
+import { Pressable, StyleSheet, View } from 'react-native';
+import {
+  AnswerChoices,
+  AppText,
+  Card,
+  Chip,
+  Row,
+  SectionLabel,
+  TipBox,
+} from '../../components/ui';
+import { spacing } from '../../theme';
 import type { SessionSummary } from '../../navigation/types';
 
 type Props = {
@@ -30,7 +37,9 @@ export function FeedbackContent({ session, readOnly = false }: Props) {
   if (!evaluation) {
     return (
       <Card>
-        <Text style={styles.muted}>Evaluation pending for this session.</Text>
+        <AppText variant="bodySmall" tone="muted">
+          Evaluation pending for this session.
+        </AppText>
       </Card>
     );
   }
@@ -38,7 +47,9 @@ export function FeedbackContent({ session, readOnly = false }: Props) {
   const renderCorrections = () =>
     evaluation.corrections.length === 0 ? (
       <Card>
-        <Text style={styles.noErrors}>No mistakes found. Well done.</Text>
+        <AppText variant="body" tone="success" style={styles.accent}>
+          No mistakes found. Well done.
+        </AppText>
       </Card>
     ) : (
       <View style={styles.list}>
@@ -48,28 +59,30 @@ export function FeedbackContent({ session, readOnly = false }: Props) {
             <Pressable
               key={`${correction.original_phrase}-${index}`}
               onPress={() => setExpanded(isOpen ? null : index)}>
-              <Card style={styles.correctionCard}>
-                <View style={styles.correctionHeader}>
+              <Card gap={spacing.sm}>
+                <Row>
                   <Chip label={correction.error_type} />
-                </View>
-                <View style={styles.phraseRow}>
-                  <Text style={styles.original}>
+                </Row>
+                <Row wrap align="flex-start" gap={spacing.xs}>
+                  <AppText variant="body" tone="danger" style={styles.original}>
                     {correction.original_phrase}
-                  </Text>
-                  <Text style={styles.arrow}>→</Text>
-                  <Text style={styles.corrected}>
+                  </AppText>
+                  <AppText variant="body" tone="muted">
+                    →
+                  </AppText>
+                  <AppText variant="body" tone="success" style={styles.corrected}>
                     {correction.corrected_phrase}
-                  </Text>
-                </View>
-                <Text style={styles.explanation}>
+                  </AppText>
+                </Row>
+                <AppText
+                  variant="bodySmall"
+                  tone="muted"
+                  style={styles.explanation}>
                   {correction.explanation}
-                </Text>
+                </AppText>
                 {isOpen ? (
                   <View style={styles.detail}>
-                    <View style={styles.tipBox}>
-                      <Text style={styles.tipLabel}>Quick tip</Text>
-                      <Text style={styles.tipText}>{correction.quick_tip}</Text>
-                    </View>
+                    <TipBox label="Quick tip">{correction.quick_tip}</TipBox>
                   </View>
                 ) : null}
               </Card>
@@ -82,16 +95,22 @@ export function FeedbackContent({ session, readOnly = false }: Props) {
   const renderRewrite = () => (
     <Card>
       <SectionLabel>Improved version</SectionLabel>
-      <Text style={styles.rewrite}>{evaluation.improved_paragraph}</Text>
-      <Text style={styles.muted}>Your original response:</Text>
-      <Text style={styles.originalText}>{session.response}</Text>
+      <AppText variant="body" style={styles.rewrite}>
+        {evaluation.improved_paragraph}
+      </AppText>
+      <AppText variant="bodySmall" tone="muted">
+        Your original response:
+      </AppText>
+      <AppText variant="bodySmall" tone="muted">
+        {session.response}
+      </AppText>
     </Card>
   );
 
   const renderStrengths = () => (
     <Card>
       <SectionLabel>Strengths</SectionLabel>
-      <Text style={styles.strengths}>{evaluation.strengths}</Text>
+      <AppText variant="body">{evaluation.strengths}</AppText>
     </Card>
   );
 
@@ -110,7 +129,7 @@ export function FeedbackContent({ session, readOnly = false }: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.tabRow}>
+      <Row wrap>
         {(Object.keys(TAB_LABELS) as Tab[]).map(key => (
           <Chip
             key={key}
@@ -119,7 +138,7 @@ export function FeedbackContent({ session, readOnly = false }: Props) {
             onPress={() => setTab(key)}
           />
         ))}
-      </View>
+      </Row>
       {tab === 'corrections' ? renderCorrections() : null}
       {tab === 'rewrite' ? renderRewrite() : null}
       {tab === 'strengths' ? renderStrengths() : null}
@@ -132,7 +151,9 @@ function McqFeedback({ session }: { session: SessionSummary }) {
   if (!exercise) {
     return (
       <Card>
-        <Text style={styles.muted}>Exercise data missing for this session.</Text>
+        <AppText variant="bodySmall" tone="muted">
+          Exercise data missing for this session.
+        </AppText>
       </Card>
     );
   }
@@ -141,7 +162,7 @@ function McqFeedback({ session }: { session: SessionSummary }) {
     <View style={styles.container}>
       <Card>
         <SectionLabel>Question</SectionLabel>
-        <Text style={styles.mcqQuestion}>{exercise.question}</Text>
+        <AppText variant="body">{exercise.question}</AppText>
       </Card>
       <AnswerChoices
         options={exercise.options}
@@ -149,13 +170,11 @@ function McqFeedback({ session }: { session: SessionSummary }) {
         selected={session.chosenIndex}
         checked
       />
-      <Card style={styles.mcqResult}>
-        <Text style={correct ? styles.mcqVerdictOk : styles.mcqVerdictBad}>
+      <Card gap={spacing.sm}>
+        <AppText variant="verdict" tone={correct ? 'success' : 'danger'}>
           {correct ? 'Correct!' : 'Not quite.'}
-        </Text>
-        <View style={styles.tipBox}>
-          <Text style={styles.tipText}>{exercise.explanation}</Text>
-        </View>
+        </AppText>
+        <TipBox>{exercise.explanation}</TipBox>
       </Card>
     </View>
   );
@@ -168,109 +187,28 @@ const styles = StyleSheet.create({
   sectionGap: {
     height: spacing.xs,
   },
-  tabRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
   list: {
     gap: spacing.sm,
   },
-  correctionCard: {
-    gap: spacing.sm,
-  },
-  correctionHeader: {
-    flexDirection: 'row',
-  },
-  phraseRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
   original: {
-    fontSize: 15,
-    color: colors.danger,
-    textDecorationLine: 'line-through',
     flex: 1,
-  },
-  arrow: {
-    fontSize: 15,
-    color: colors.textMuted,
+    textDecorationLine: 'line-through',
   },
   corrected: {
-    fontSize: 15,
-    color: colors.success,
-    fontWeight: '600',
     flex: 1,
+    fontWeight: '600',
+  },
+  accent: {
+    fontWeight: '600',
   },
   explanation: {
-    fontSize: 14,
-    color: colors.textMuted,
-    lineHeight: 20,
     marginTop: 2,
   },
   detail: {
     gap: spacing.sm,
     marginTop: spacing.xs,
   },
-  tipBox: {
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.sm,
-    padding: spacing.sm + 2,
-    gap: 2,
-  },
-  tipLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  tipText: {
-    fontSize: 14,
-    color: colors.text,
-  },
   rewrite: {
-    fontSize: 15,
-    color: colors.text,
-    lineHeight: 22,
     marginBottom: spacing.md,
-  },
-  originalText: {
-    fontSize: 14,
-    color: colors.textMuted,
-    lineHeight: 20,
-  },
-  strengths: {
-    fontSize: 15,
-    color: colors.text,
-    lineHeight: 22,
-  },
-  noErrors: {
-    fontSize: 15,
-    color: colors.success,
-    fontWeight: '600',
-  },
-  muted: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  mcqQuestion: {
-    fontSize: 15,
-    color: colors.text,
-    lineHeight: 22,
-  },
-  mcqResult: {
-    gap: spacing.sm,
-  },
-  mcqVerdictOk: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.success,
-    fontFamily: fonts.bold,
-  },
-  mcqVerdictBad: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.danger,
-    fontFamily: fonts.bold,
   },
 });

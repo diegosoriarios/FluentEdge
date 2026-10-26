@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
-import { Button, ProgressBar } from '../../components/ui';
-import { colors, radius, spacing } from '../../theme';
+import { AppText, Button, OptionRow, ProgressBar, Row } from '../../components/ui';
+import { spacing } from '../../theme';
 import { DIAGNOSTIC_QUESTIONS, scoreDiagnostic } from '../../data/diagnostic';
 import { useOnboarding } from '../../context/OnboardingContext';
 import type { OnboardingStackParamList } from '../../navigation/types';
@@ -41,30 +41,28 @@ export function DiagnosticTestScreen({ navigation }: Props) {
   return (
     <Screen title="Quick diagnostic" subtitle={`Question ${index + 1} of ${total}`}>
       <ProgressBar progress={(index + 1) / total} />
-      <Text style={styles.prompt}>{question.prompt}</Text>
+      <AppText variant="heading" style={styles.prompt}>
+        {question.prompt}
+      </AppText>
       <View style={styles.options}>
-        {question.options.map((option, optionIndex) => {
-          const selected = selectedIndex === optionIndex;
-          return (
-            <Pressable
-              key={option}
-              style={({ pressed }) => [
-                styles.option,
-                selected && styles.optionSelected,
-                pressed && styles.optionPressed,
-              ]}
-              onPress={() => select(optionIndex)}>
-              <View
-                style={[styles.radio, selected && styles.radioSelected]}
-              />
-              <Text style={styles.optionText}>{option}</Text>
-            </Pressable>
-          );
-        })}
+        {question.options.map((option, optionIndex) => (
+          <OptionRow
+            key={option}
+            title={option}
+            selected={selectedIndex === optionIndex}
+            onPress={() => select(optionIndex)}
+            radioPosition="left"
+          />
+        ))}
       </View>
-      <View style={styles.actions}>
+      <Row style={styles.actions}>
         {index > 0 ? (
-          <Button title="Back" variant="secondary" onPress={goBack} style={styles.half} />
+          <Button
+            title="Back"
+            variant="secondary"
+            onPress={goBack}
+            style={styles.half}
+          />
         ) : null}
         <Button
           title={index < total - 1 ? 'Next' : 'See results'}
@@ -72,58 +70,20 @@ export function DiagnosticTestScreen({ navigation }: Props) {
           disabled={selectedIndex == null}
           style={styles.half}
         />
-      </View>
+      </Row>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   prompt: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
     marginTop: spacing.lg,
     marginBottom: spacing.md,
   },
   options: {
     gap: spacing.sm,
   },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface2,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
-  optionSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
-  },
-  optionPressed: {
-    opacity: 0.75,
-  },
-  radio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: colors.inputBorder,
-    marginRight: spacing.sm + 2,
-  },
-  radioSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary,
-  },
-  optionText: {
-    flex: 1,
-    fontSize: 15,
-    color: colors.text,
-  },
   actions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
     marginTop: spacing.lg,
   },
   half: {

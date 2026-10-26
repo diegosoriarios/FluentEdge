@@ -1,12 +1,12 @@
 import { useCallback, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
-import { Button, Card, Chip } from '../../components/ui';
-import { colors, spacing } from '../../theme';
+import { AppText, Button, Card, Chip, Row } from '../../components/ui';
+import { spacing } from '../../theme';
 import { usePaginatedSessions } from '../../hooks/useSessionData';
 import { deleteSession } from '../../data';
 import { exerciseTypeLabel } from '../../utils/exercises';
@@ -82,7 +82,7 @@ export function ProgressScreen({ navigation }: Props) {
         style={styles.historyButton}
       />
       <WeeklyRecapCard />
-      <View style={styles.rangeRow}>
+      <Row wrap style={styles.rangeRow}>
         {(Object.keys(RANGE_LABELS) as Range[]).map(key => (
           <Chip
             key={key}
@@ -91,7 +91,7 @@ export function ProgressScreen({ navigation }: Props) {
             onPress={() => setRange(key)}
           />
         ))}
-      </View>
+      </Row>
       <FlatList
         data={filtered}
         keyExtractor={item => item.id}
@@ -103,12 +103,14 @@ export function ProgressScreen({ navigation }: Props) {
                 navigation.navigate('SessionDetail', { sessionId: item.id })
               }
               onLongPress={() => confirmDelete(item)}>
-              <Card style={styles.sessionCard}>
-                <Text style={styles.date}>{formatDateTime(item.createdAt)}</Text>
-                <Text style={styles.prompt} numberOfLines={2}>
+              <Card gap={spacing.xs}>
+                <AppText variant="micro">
+                  {formatDateTime(item.createdAt)}
+                </AppText>
+                <AppText variant="body" numberOfLines={2}>
                   {item.prompt}
-                </Text>
-                <View style={styles.metaRow}>
+                </AppText>
+                <Row wrap gap={spacing.xs}>
                   <Chip label={exerciseTypeLabel(item.type)} />
                   {item.mistakeId ? <Chip label="Review" /> : null}
                   <Chip
@@ -118,23 +120,25 @@ export function ProgressScreen({ navigation }: Props) {
                         : 'Not evaluated'
                     }
                   />
-                </View>
+                </Row>
               </Card>
             </Pressable>
           );
         }}
         ListEmptyComponent={
-          <Text style={styles.empty}>
+          <AppText variant="body" tone="muted" style={styles.empty}>
             {loading
               ? 'Loading…'
               : 'No sessions yet. Complete an exercise to see it here.'}
-          </Text>
+          </AppText>
         }
         ListFooterComponent={
           hasMore ? (
             <View style={styles.footerRow}>
               {loadingMore ? (
-                <Text style={styles.empty}>Loading more…</Text>
+                <AppText variant="body" tone="muted" style={styles.empty}>
+                  Loading more…
+                </AppText>
               ) : (
                 <Chip label="Load more" onPress={loadMore} />
               )}
@@ -154,33 +158,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   rangeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     marginBottom: spacing.md,
   },
   listContent: {
     gap: spacing.sm,
     paddingBottom: spacing.lg,
   },
-  sessionCard: {
-    gap: spacing.xs,
-  },
-  date: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  prompt: {
-    fontSize: 15,
-    color: colors.text,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
   empty: {
-    fontSize: 15,
-    color: colors.textMuted,
     textAlign: 'center',
     marginTop: spacing.xl,
   },

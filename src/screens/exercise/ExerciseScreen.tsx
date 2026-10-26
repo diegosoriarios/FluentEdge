@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
-import { Button, Card } from '../../components/ui';
-import { AnswerChoices } from '../../components/AnswerChoices';
-import { colors, fonts, radius, spacing } from '../../theme';
+import {
+  AnswerChoices,
+  AppText,
+  Button,
+  Card,
+  Input,
+  TipBox,
+} from '../../components/ui';
+import { spacing } from '../../theme';
 import {
   getSession,
   getRecentErrorTypeLists,
@@ -53,7 +59,6 @@ export function ExerciseScreen({ route, navigation }: Props) {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [tokenCount, setTokenCount] = useState(0);
   const [regenerating, setRegenerating] = useState(false);
-  const [inputFocused, setInputFocused] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   const [checked, setChecked] = useState(false);
   const [focusTip, setFocusTip] = useState<string | null>(null);
@@ -316,9 +321,9 @@ export function ExerciseScreen({ route, navigation }: Props) {
     const correct = selected === exercise.answerIndex;
     return (
       <Screen title="Exercise" subtitle="Multiple choice">
-        <Card style={styles.promptCard}>
-          <Text style={styles.promptLabel}>Choose the correct answer</Text>
-          <Text style={styles.promptText}>{exercise.question}</Text>
+        <Card gap={spacing.xs} style={styles.promptCard}>
+          <AppText variant="label">Choose the correct answer</AppText>
+          <AppText style={styles.promptText}>{exercise.question}</AppText>
         </Card>
         <AnswerChoices
           options={exercise.options}
@@ -329,12 +334,10 @@ export function ExerciseScreen({ route, navigation }: Props) {
         />
         {checked ? (
           <View style={styles.mcqFooter}>
-            <Text style={correct ? styles.verdictOk : styles.verdictBad}>
+            <AppText variant="verdict" tone={correct ? 'success' : 'danger'}>
               {correct ? 'Correct!' : 'Not quite.'}
-            </Text>
-            <View style={styles.tipBox}>
-              <Text style={styles.tipText}>{exercise.explanation}</Text>
-            </View>
+            </AppText>
+            <TipBox>{exercise.explanation}</TipBox>
             <Button
               title="See feedback"
               onPress={() =>
@@ -357,24 +360,28 @@ export function ExerciseScreen({ route, navigation }: Props) {
   return (
     <Screen title="Exercise" scroll={false} avoidKeyboard>
       {focusTip && !tipDismissed ? (
-        <Card style={styles.focusTipCard}>
+        <Card tone="primary" gap={spacing.xs} style={styles.focusTipCard}>
           <View style={styles.focusTipHeader}>
-            <Text style={styles.focusTipLabel}>Focus tip</Text>
+            <AppText variant="label" tone="primary">
+              Focus tip
+            </AppText>
             <Pressable onPress={() => setTipDismissed(true)} hitSlop={8}>
-              <Text style={styles.focusTipDismiss}>✕</Text>
+              <AppText variant="bodySmall" tone="muted">
+                ✕
+              </AppText>
             </Pressable>
           </View>
-          <Text style={styles.focusTipBody}>{focusTip}</Text>
+          <AppText variant="bodySmall">{focusTip}</AppText>
         </Card>
       ) : null}
       <ScrollView
         style={styles.promptScroll}
         keyboardShouldPersistTaps="handled">
-        <Card style={styles.promptCard}>
-          <Text style={styles.promptLabel}>
+        <Card gap={spacing.xs} style={styles.promptCard}>
+          <AppText variant="label">
             {session.type === 'short_answer' ? 'Question' : 'Writing prompt'}
-          </Text>
-          <Text style={styles.promptText}>{session.prompt}</Text>
+          </AppText>
+          <AppText style={styles.promptText}>{session.prompt}</AppText>
           <Button
             title={regenerating ? 'New prompt…' : 'New prompt'}
             variant="secondary"
@@ -385,7 +392,7 @@ export function ExerciseScreen({ route, navigation }: Props) {
           />
         </Card>
       </ScrollView>
-      <TextInput
+      <Input
         value={text}
         onChangeText={onChangeText}
         placeholder={
@@ -393,24 +400,22 @@ export function ExerciseScreen({ route, navigation }: Props) {
             ? 'Answer in 1-3 sentences…'
             : 'Write your response here…'
         }
-        placeholderTextColor={colors.subdued}
         multiline
         textAlignVertical="top"
-        style={[
-          styles.input,
-          inputFocused && styles.inputFocused,
-        ]}
+        style={styles.input}
         editable={!evaluating}
-        onFocus={() => setInputFocused(true)}
-        onBlur={() => setInputFocused(false)}
       />
       <View style={styles.footer}>
-        <Text style={wordCount >= minWords ? styles.countOk : styles.countLow}>
+        <AppText
+          variant="caption"
+          tone={wordCount >= minWords ? 'text' : 'danger'}>
           {wordCount} words (minimum {minWords})
-        </Text>
+        </AppText>
         {submitError ? (
           <View style={styles.errorWrap}>
-            <Text style={styles.errorText}>{submitError}</Text>
+            <AppText variant="bodySmall" tone="danger">
+              {submitError}
+            </AppText>
             <Button
               title="Retry"
               variant="secondary"
@@ -420,13 +425,13 @@ export function ExerciseScreen({ route, navigation }: Props) {
           </View>
         ) : null}
         {evaluating && evalStage ? (
-          <Text style={styles.stageText}>
+          <AppText variant="caption">
             {evalStage === 'loading-model'
               ? `Loading model… ${elapsedSec}s`
               : `Grading your writing… ${elapsedSec}s${
                   tokenCount > 0 ? ` · ${tokenCount} tokens` : ''
                 }`}
-          </Text>
+          </AppText>
         ) : null}
         <Button
           title={evaluating ? 'Evaluating…' : 'Submit for feedback'}
@@ -443,81 +448,30 @@ export function ExerciseScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   focusTipCard: {
     marginBottom: spacing.md,
-    gap: spacing.xs,
-    borderColor: colors.primary,
   },
   focusTipHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  focusTipLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  focusTipDismiss: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  focusTipBody: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-  },
   promptScroll: {
     maxHeight: '35%',
   },
   promptCard: {
     marginBottom: spacing.md,
-    gap: spacing.xs,
-  },
-  promptLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   promptText: {
     fontSize: 16,
-    color: colors.text,
-    lineHeight: 22,
   },
   input: {
     flex: 1,
-    backgroundColor: colors.inverse,
-    borderWidth: 1.5,
-    borderColor: colors.inputBorder,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    fontSize: 16,
-    color: colors.text,
-    lineHeight: 22,
-  },
-  inputFocused: {
-    borderColor: colors.primary,
   },
   footer: {
     paddingTop: spacing.md,
     gap: spacing.sm,
   },
-  countOk: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  countLow: {
-    fontSize: 13,
-    color: colors.danger,
-  },
   errorWrap: {
     gap: spacing.sm,
-  },
-  stageText: {
-    fontSize: 13,
-    color: colors.textMuted,
   },
   regenerateButton: {
     marginTop: spacing.xs,
@@ -525,32 +479,6 @@ const styles = StyleSheet.create({
   mcqFooter: {
     marginTop: spacing.md,
     gap: spacing.md,
-  },
-  verdictOk: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.success,
-    fontFamily: fonts.bold,
-  },
-  verdictBad: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.danger,
-    fontFamily: fonts.bold,
-  },
-  tipBox: {
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.sm,
-    padding: spacing.sm + 2,
-  },
-  tipText: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  errorText: {
-    fontSize: 14,
-    color: colors.danger,
   },
   submit: {
     marginBottom: spacing.sm,
