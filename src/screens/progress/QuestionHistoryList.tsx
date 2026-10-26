@@ -1,8 +1,7 @@
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useFocusEffect } from '@react-navigation/native';
-import { Screen } from '../../components/Screen';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { AppText, Card, Chip, Row } from '../../components/ui';
 import { spacing } from '../../theme';
 import { useQuestionHistory } from '../../hooks/useSessionData';
@@ -12,11 +11,12 @@ import { formatDateTime } from '../../utils/format';
 import type { DailyQuestionRecord } from '../../data/questions';
 import type { RootStackParamList } from '../../navigation/types';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'QuestionHistory'>;
-
 const EMPTY_STATS: AnsweredDailyQuestionStats = { total: 0, correct: 0 };
 
-export function QuestionHistoryScreen({ navigation }: Props) {
+type Navigation = NativeStackNavigationProp<RootStackParamList>;
+
+export function QuestionHistoryList() {
+  const navigation = useNavigation<Navigation>();
   const { questions, loading, loadingMore, hasMore, reload, loadMore } =
     useQuestionHistory();
   const [stats, setStats] = useState<AnsweredDailyQuestionStats>(EMPTY_STATS);
@@ -34,48 +34,53 @@ export function QuestionHistoryScreen({ navigation }: Props) {
 
   const percentCorrect =
     stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
-  const subtitle =
+  const summary =
     stats.total > 0
       ? `${stats.total} answered · ${percentCorrect}% correct`
       : 'No questions answered yet';
 
   return (
-    <Screen title="Question history" subtitle={subtitle}>
-      <FlatList
-        data={questions}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => <HistoryItem item={item} navigation={navigation} />}
-        ListEmptyComponent={
-          <AppText variant="body" tone="muted" style={styles.empty}>
-            {loading
-              ? 'Loading…'
-              : 'Answer a daily question from a notification to see it here.'}
-          </AppText>
-        }
-        ListFooterComponent={
-          hasMore ? (
-            <View style={styles.footerRow}>
-              {loadingMore ? (
-                <AppText variant="body" tone="muted" style={styles.empty}>
-                  Loading more…
-                </AppText>
-              ) : (
-                <Chip label="Load more" onPress={loadMore} />
-              )}
-            </View>
-          ) : undefined
-        }
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
-        contentContainerStyle={styles.listContent}
-      />
-    </Screen>
+    <FlatList
+      data={questions}
+      keyExtractor={item => item.id}
+      renderItem={({ item }) => (
+        <HistoryItem item={item} navigation={navigation} />
+      )}
+      ListHeaderComponent={
+        <AppText variant="bodySmall" tone="muted" style={styles.summary}>
+          {summary}
+        </AppText>
+      }
+      ListEmptyComponent={
+        <AppText variant="body" tone="muted" style={styles.empty}>
+          {loading
+            ? 'Loading…'
+            : 'Answer a daily question from a notification to see it here.'}
+        </AppText>
+      }
+      ListFooterComponent={
+        hasMore ? (
+          <View style={styles.footerRow}>
+            {loadingMore ? (
+              <AppText variant="body" tone="muted" style={styles.empty}>
+                Loading more…
+              </AppText>
+            ) : (
+              <Chip label="Load more" onPress={loadMore} />
+            )}
+          </View>
+        ) : undefined
+      }
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.5}
+      contentContainerStyle={styles.listContent}
+    />
   );
 }
 
 function HistoryItem({ item, navigation }: {
   item: DailyQuestionRecord;
-  navigation: Props['navigation'];
+  navigation: Navigation;
 }) {
   const correct = item.chosenIndex === item.answerIndex;
   return (
@@ -103,6 +108,9 @@ const styles = StyleSheet.create({
   listContent: {
     gap: spacing.sm,
     paddingBottom: spacing.lg,
+  },
+  summary: {
+    marginBottom: spacing.sm,
   },
   empty: {
     textAlign: 'center',

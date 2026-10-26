@@ -20,7 +20,6 @@ import { MainTabs } from './MainTabs';
 import { ExerciseScreen } from '../screens/exercise/ExerciseScreen';
 import { FeedbackScreen } from '../screens/exercise/FeedbackScreen';
 import { SessionDetailScreen } from '../screens/progress/SessionDetailScreen';
-import { QuestionHistoryScreen } from '../screens/progress/QuestionHistoryScreen';
 import { LessonScreen } from '../screens/lesson/LessonScreen';
 import type { RootStackParamList } from './types';
 import type { NavigationProp } from '@react-navigation/native';
@@ -213,11 +212,6 @@ export function RootNavigator() {
             name="SessionDetail"
             component={SessionDetailScreen}
             options={{ headerShown: true, title: 'Session' }}
-          />
-          <Stack.Screen
-            name="QuestionHistory"
-            component={QuestionHistoryScreen}
-            options={{ headerShown: true, title: 'Question history' }}
           />
           <Stack.Screen
             name="Lesson"

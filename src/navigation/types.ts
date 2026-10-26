@@ -71,7 +71,6 @@ export type RootStackParamList = {
   Feedback: { sessionId: string };
   SessionDetail: { sessionId: string };
   Lesson: { questionId: string };
-  QuestionHistory: undefined;
 };
 
 export type OnboardingStackParamList = {
