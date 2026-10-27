@@ -1,8 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
-import { Button } from '../../components/ui';
-import { colors, radius, spacing } from '../../theme';
+import { Button, OptionRow } from '../../components/ui';
+import { spacing } from '../../theme';
 import { useOnboarding } from '../../context/OnboardingContext';
 import type { Goal, OnboardingStackParamList } from '../../navigation/types';
 
@@ -32,25 +32,15 @@ export function GoalsScreen({ navigation }: Props) {
   return (
     <Screen title="What is your goal?" subtitle="Pick the one that fits best for now">
       <View style={styles.list}>
-        {GOALS.map(goal => {
-          const selected = draft.goal === goal;
-          return (
-            <Pressable
-              key={goal}
-              style={({ pressed }) => [
-                styles.row,
-                selected && styles.rowSelected,
-                pressed && styles.rowPressed,
-              ]}
-              onPress={() => update({ goal })}>
-              <View style={styles.rowText}>
-                <Text style={styles.rowTitle}>{GOAL_TITLES[goal]}</Text>
-                <Text style={styles.rowSubtitle}>{GOAL_DESCRIPTIONS[goal]}</Text>
-              </View>
-              <View style={[styles.radio, selected && styles.radioSelected]} />
-            </Pressable>
-          );
-        })}
+        {GOALS.map(goal => (
+          <OptionRow
+            key={goal}
+            title={GOAL_TITLES[goal]}
+            subtitle={GOAL_DESCRIPTIONS[goal]}
+            selected={draft.goal === goal}
+            onPress={() => update({ goal })}
+          />
+        ))}
       </View>
       <Button
         title="Continue"
@@ -65,46 +55,5 @@ const styles = StyleSheet.create({
   list: {
     gap: spacing.sm,
     marginBottom: spacing.lg,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface2,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
-  rowSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
-  },
-  rowPressed: {
-    opacity: 0.75,
-  },
-  rowText: {
-    flex: 1,
-  },
-  rowTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  rowSubtitle: {
-    marginTop: 2,
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  radio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: colors.inputBorder,
-    marginLeft: spacing.sm + 2,
-  },
-  radioSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary,
   },
 });

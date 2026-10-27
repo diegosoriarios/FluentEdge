@@ -2,14 +2,18 @@ import type { Profile } from '../../navigation/types';
 import { Platform } from 'react-native';
 import { initLlama } from 'llama.rn';
 import {
+  buildClozeReviewSystemPrompt,
   buildExerciseGenSystemPrompt,
   buildGradingSystemPrompt,
+  buildMicroLessonSystemPrompt,
   buildPromptGenSystemPrompt,
   cleanGeneratedPrompt,
   ensureModelLoaded,
   evaluateWriting,
   filterPhantomCorrections,
+  generateClozeReviewQuestion,
   generateExercise,
+  generateMicroLesson,
   isEvaluation,
   isGenerationInFlight,
   isLowQualityPrompt,
@@ -664,5 +668,126 @@ describe('generation serialization and release guard', () => {
       generateExercise('paragraph', PROFILE),
     ]);
     expect(overlapped).toBe(false);
+  });
+});
+
+describe('buildClozeReviewSystemPrompt', () => {
+  it('embeds the mistake details and schema instructions', () => {
+    const prompt = buildClozeReviewSystemPrompt(
+      {
+        errorType: 'Subject-Verb Agreement',
+        originalPhrase: 'he go to school',
+        correctedPhrase: 'he goes to school',
+        explanation: 'Third person singular takes -s.',
+      },
+      PROFILE,
+    );
+    expect(prompt).toContain('he go to school');
+    expect(prompt).toContain('he goes to school');
+    expect(prompt).toContain('Subject-Verb Agreement');
+    expect(prompt).toContain('exactly 3 options');
+    expect(prompt).toContain("user's original incorrect wording");
+  });
+});
+
+describe('buildMicroLessonSystemPrompt', () => {
+  it('targets the error type with plain-text rules', () => {
+    const prompt = buildMicroLessonSystemPrompt('Articles', PROFILE);
+    expect(prompt).toContain('Mistake type: Articles');
+    expect(prompt).toContain('at most 3 short sentences');
+    expect(prompt).toContain('plain text only');
+  });
+});
+
+describe('generateClozeReviewQuestion', () => {
+  const initLlamaMock = jest.mocked(initLlama);
+
+  beforeEach(async () => {
+    initLlamaMock.mockReset();
+    initLlamaMock.mockResolvedValue({
+      release: jest.fn(() => Promise.resolve()),
+      completion: jest.fn(() =>
+        Promise.resolve({
+          text: JSON.stringify({
+            question: 'He ___ to school every day.',
+            options: ['go', 'goes', 'gone'],
+            answer_index: 1,
+            explanation: 'Third person singular takes -s.',
+          }),
+        }),
+      ),
+    } as unknown as Awaited<ReturnType<typeof initLlama>>);
+    await releaseModel();
+  });
+
+  it('returns a validated exercise from the model output', async () => {
+    const exercise = await generateClozeReviewQuestion(
+      {
+        errorType: 'Subject-Verb Agreement',
+        originalPhrase: 'he go to school',
+        correctedPhrase: 'he goes to school',
+        explanation: 'Third person singular takes -s.',
+      },
+      PROFILE,
+    );
+    expect(exercise).toEqual({
+      question: 'He ___ to school every day.',
+      options: ['go', 'goes', 'gone'],
+      answerIndex: 1,
+      explanation: 'Third person singular takes -s.',
+    });
+  });
+
+  it('propagates schema validation failures', async () => {
+    jest.mocked(initLlama).mockResolvedValueOnce({
+      release: jest.fn(() => Promise.resolve()),
+      completion: jest.fn(() =>
+        Promise.resolve({ text: 'no json here' }),
+      ),
+    } as unknown as Awaited<ReturnType<typeof initLlama>>);
+    await expect(
+      generateClozeReviewQuestion(
+        {
+          errorType: 'x',
+          originalPhrase: 'a b',
+          correctedPhrase: 'a c',
+          explanation: 'e',
+        },
+        PROFILE,
+      ),
+    ).rejects.toThrow();
+  });
+});
+
+describe('generateMicroLesson', () => {
+  const initLlamaMock = jest.mocked(initLlama);
+  let completionMock: jest.Mock;
+
+  beforeEach(async () => {
+    initLlamaMock.mockReset();
+    completionMock = jest.fn(() =>
+      Promise.resolve({ text: 'Use "an" before vowel sounds.' }),
+    );
+    initLlamaMock.mockResolvedValue({
+      release: jest.fn(() => Promise.resolve()),
+      completion: completionMock,
+    } as unknown as Awaited<ReturnType<typeof initLlama>>);
+    await releaseModel();
+  });
+
+  it('returns the cleaned lesson and caches repeat requests', async () => {
+    const first = await generateMicroLesson('Articles', PROFILE);
+    expect(first).toBe('Use "an" before vowel sounds.');
+    const second = await generateMicroLesson('Articles', PROFILE);
+    expect(second).toBe(first);
+    expect(completionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('regenerates for a different error type', async () => {
+    await generateMicroLesson('Word Order', PROFILE);
+    await generateMicroLesson('Prepositions', PROFILE);
+    expect(completionMock).toHaveBeenCalledTimes(2);
+    const secondCallMessages = completionMock.mock.calls[1][0].messages;
+    expect(JSON.stringify(secondCallMessages)).toContain('Prepositions');
   });
 });

@@ -2,6 +2,7 @@ import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppText } from './ui';
 import { colors, radius, spacing } from '../theme';
 
 type Props = {
@@ -35,13 +36,17 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.container}>
-          <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.body}>
+          <AppText variant="stat" style={styles.title}>
+            Something went wrong
+          </AppText>
+          <AppText variant="body" tone="muted" style={styles.body}>
             The app hit an unexpected error. Your profile and progress are
             saved — try reloading.
-          </Text>
+          </AppText>
           {this.state.message ? (
-            <Text style={styles.detail}>{this.state.message}</Text>
+            <AppText variant="micro" style={styles.detail}>
+              {this.state.message}
+            </AppText>
           ) : null}
           <Pressable style={styles.button} onPress={this.reset}>
             <Text style={styles.buttonText}>Reload</Text>
@@ -65,19 +70,12 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   title: {
-    fontSize: 22,
     fontWeight: '700',
-    color: colors.text,
   },
   body: {
-    fontSize: 15,
-    color: colors.textMuted,
     textAlign: 'center',
-    lineHeight: 21,
   },
   detail: {
-    fontSize: 12,
-    color: colors.textMuted,
     textAlign: 'center',
   },
   button: {

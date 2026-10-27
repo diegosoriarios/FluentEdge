@@ -3,12 +3,12 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppText } from './ui';
 import { colors, fonts, spacing } from '../theme';
 
 type Props = {
@@ -36,13 +36,17 @@ export function Screen({
         {title ? (
           onTitleLongPress ? (
             <Pressable onLongPress={onTitleLongPress}>
-              <Text style={styles.title}>{title}</Text>
+              <AppText variant="display">{title}</AppText>
             </Pressable>
           ) : (
-            <Text style={styles.title}>{title}</Text>
+            <AppText variant="display">{title}</AppText>
           )
         ) : null}
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        {subtitle ? (
+          <AppText variant="body" tone="muted" style={styles.subtitle}>
+            {subtitle}
+          </AppText>
+        ) : null}
       </View>
     ) : null;
 
@@ -91,17 +95,8 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: colors.text,
-    fontFamily: fonts.extrabold,
-    letterSpacing: -0.5,
-  },
   subtitle: {
     marginTop: spacing.xs,
-    fontSize: 15,
-    color: colors.textMuted,
     fontFamily: fonts.regular,
   },
   content: {

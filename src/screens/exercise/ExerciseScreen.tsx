@@ -1,23 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
-import { Button, Card } from '../../components/ui';
-import { AnswerChoices } from '../../components/AnswerChoices';
-import { colors, fonts, radius, spacing } from '../../theme';
+import {
+  AnswerChoices,
+  AppText,
+  Button,
+  Card,
+  Input,
+  TipBox,
+} from '../../components/ui';
+import { spacing } from '../../theme';
 import {
   getSession,
   getRecentErrorTypeLists,
+  listDueMistakes,
+  recordReviewOutcome,
   setChosenIndex,
   updateSessionEvaluation,
   updateSessionPrompt,
   updateSessionResponse,
+  upsertFromCorrections,
 } from '../../data';
 import { getPromptForProfile } from '../../data/prompts';
 import { useModel } from '../../context/ModelContext';
 import type { EvaluationStage } from '../../ai/tutor';
 import { summarizeWeakSpotsFromLists } from '../../ai/adaptive';
 import { prefetchNextExercise } from '../../services/exerciseCache';
+import { prefetchReviewQuestion } from '../../services/reviewCache';
 import { useProfile } from '../../context/ProfileContext';
 import { useRecentSessions, useWeakSpots } from '../../hooks/useSessionData';
 import { nextLevel } from '../../ai/adaptive';
@@ -36,10 +46,10 @@ const AUTOSAVE_DEBOUNCE_MS = 1500;
 
 export function ExerciseScreen({ route, navigation }: Props) {
   const { sessionId } = route.params;
-  const { evaluate, generatePrompt } = useModel();
+  const { evaluate, generatePrompt, generateMicroLesson } = useModel();
   const { profile, saveProfile } = useProfile();
   const { sessions: recentSessions } = useRecentSessions();
-  const { summary: weakSpotsSummary } = useWeakSpots();
+  const { summary: weakSpotsSummary, topErrorTypes } = useWeakSpots();
   const [session, setSession] = useState<SessionSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
@@ -49,9 +59,10 @@ export function ExerciseScreen({ route, navigation }: Props) {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [tokenCount, setTokenCount] = useState(0);
   const [regenerating, setRegenerating] = useState(false);
-  const [inputFocused, setInputFocused] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   const [checked, setChecked] = useState(false);
+  const [focusTip, setFocusTip] = useState<string | null>(null);
+  const [tipDismissed, setTipDismissed] = useState(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSavedRef = useRef('');
@@ -83,6 +94,26 @@ export function ExerciseScreen({ route, navigation }: Props) {
       cancelled = true;
     };
   }, [sessionId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFocusTip(null);
+    setTipDismissed(false);
+    const topErrorType = topErrorTypes[0]?.type;
+    if (!session || session.type === 'multiple_choice' || !profile || !topErrorType) {
+      return undefined;
+    }
+    generateMicroLesson(topErrorType, profile)
+      .then(lesson => {
+        if (!cancelled) {
+          setFocusTip(lesson);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [session, topErrorTypes, profile, generateMicroLesson]);
 
   const clearAutosaveTimer = () => {
     if (autosaveTimerRef.current != null) {
@@ -128,6 +159,35 @@ export function ExerciseScreen({ route, navigation }: Props) {
     setChosenIndex(session.id, selected).catch(error => {
       console.warn('Failed to save answer', error);
     });
+    if (session.mistakeId) {
+      recordReviewOutcome(
+        session.mistakeId,
+        selected === session.exercise.answerIndex,
+      )
+        .then(() => {
+          if (!profile) {
+            return undefined;
+          }
+          return listDueMistakes(1).then(([next]) => {
+            if (next) {
+              return prefetchReviewQuestion(
+                {
+                  id: next.id,
+                  errorType: next.errorType,
+                  originalPhrase: next.originalPhrase,
+                  correctedPhrase: next.correctedPhrase,
+                  explanation: next.explanation,
+                },
+                profile,
+              );
+            }
+            return undefined;
+          });
+        })
+        .catch(error => {
+          console.warn('Failed to record review outcome', error);
+        });
+    }
   };
 
   const submit = async () => {
@@ -162,6 +222,9 @@ export function ExerciseScreen({ route, navigation }: Props) {
         session.type,
       );
       await updateSessionEvaluation(session.id, evaluation);
+      upsertFromCorrections(evaluation.corrections).catch(error => {
+        console.warn('Failed to update mistake journal', error);
+      });
       const sessionsWithCurrent = [
         { ...session, response: text, evaluation },
         ...recentSessions.filter(item => item.id !== session.id),
@@ -258,9 +321,9 @@ export function ExerciseScreen({ route, navigation }: Props) {
     const correct = selected === exercise.answerIndex;
     return (
       <Screen title="Exercise" subtitle="Multiple choice">
-        <Card style={styles.promptCard}>
-          <Text style={styles.promptLabel}>Choose the correct answer</Text>
-          <Text style={styles.promptText}>{exercise.question}</Text>
+        <Card gap={spacing.xs} style={styles.promptCard}>
+          <AppText variant="label">Choose the correct answer</AppText>
+          <AppText style={styles.promptText}>{exercise.question}</AppText>
         </Card>
         <AnswerChoices
           options={exercise.options}
@@ -271,12 +334,10 @@ export function ExerciseScreen({ route, navigation }: Props) {
         />
         {checked ? (
           <View style={styles.mcqFooter}>
-            <Text style={correct ? styles.verdictOk : styles.verdictBad}>
+            <AppText variant="verdict" tone={correct ? 'success' : 'danger'}>
               {correct ? 'Correct!' : 'Not quite.'}
-            </Text>
-            <View style={styles.tipBox}>
-              <Text style={styles.tipText}>{exercise.explanation}</Text>
-            </View>
+            </AppText>
+            <TipBox>{exercise.explanation}</TipBox>
             <Button
               title="See feedback"
               onPress={() =>
@@ -298,21 +359,40 @@ export function ExerciseScreen({ route, navigation }: Props) {
 
   return (
     <Screen title="Exercise" scroll={false} avoidKeyboard>
-      <Card style={styles.promptCard}>
-        <Text style={styles.promptLabel}>
-          {session.type === 'short_answer' ? 'Question' : 'Writing prompt'}
-        </Text>
-        <Text style={styles.promptText}>{session.prompt}</Text>
-        <Button
-          title={regenerating ? 'New prompt…' : 'New prompt'}
-          variant="secondary"
-          onPress={regeneratePrompt}
-          disabled={evaluating || regenerating}
-          loading={regenerating}
-          style={styles.regenerateButton}
-        />
-      </Card>
-      <TextInput
+      {focusTip && !tipDismissed ? (
+        <Card tone="primary" gap={spacing.xs} style={styles.focusTipCard}>
+          <View style={styles.focusTipHeader}>
+            <AppText variant="label" tone="primary">
+              Focus tip
+            </AppText>
+            <Pressable onPress={() => setTipDismissed(true)} hitSlop={8}>
+              <AppText variant="bodySmall" tone="muted">
+                ✕
+              </AppText>
+            </Pressable>
+          </View>
+          <AppText variant="bodySmall">{focusTip}</AppText>
+        </Card>
+      ) : null}
+      <ScrollView
+        style={styles.promptScroll}
+        keyboardShouldPersistTaps="handled">
+        <Card gap={spacing.xs} style={styles.promptCard}>
+          <AppText variant="label">
+            {session.type === 'short_answer' ? 'Question' : 'Writing prompt'}
+          </AppText>
+          <AppText style={styles.promptText}>{session.prompt}</AppText>
+          <Button
+            title={regenerating ? 'New prompt…' : 'New prompt'}
+            variant="secondary"
+            onPress={regeneratePrompt}
+            disabled={evaluating || regenerating}
+            loading={regenerating}
+            style={styles.regenerateButton}
+          />
+        </Card>
+      </ScrollView>
+      <Input
         value={text}
         onChangeText={onChangeText}
         placeholder={
@@ -320,24 +400,22 @@ export function ExerciseScreen({ route, navigation }: Props) {
             ? 'Answer in 1-3 sentences…'
             : 'Write your response here…'
         }
-        placeholderTextColor={colors.subdued}
         multiline
         textAlignVertical="top"
-        style={[
-          styles.input,
-          inputFocused && styles.inputFocused,
-        ]}
+        style={styles.input}
         editable={!evaluating}
-        onFocus={() => setInputFocused(true)}
-        onBlur={() => setInputFocused(false)}
       />
       <View style={styles.footer}>
-        <Text style={wordCount >= minWords ? styles.countOk : styles.countLow}>
+        <AppText
+          variant="caption"
+          tone={wordCount >= minWords ? 'text' : 'danger'}>
           {wordCount} words (minimum {minWords})
-        </Text>
+        </AppText>
         {submitError ? (
           <View style={styles.errorWrap}>
-            <Text style={styles.errorText}>{submitError}</Text>
+            <AppText variant="bodySmall" tone="danger">
+              {submitError}
+            </AppText>
             <Button
               title="Retry"
               variant="secondary"
@@ -347,13 +425,13 @@ export function ExerciseScreen({ route, navigation }: Props) {
           </View>
         ) : null}
         {evaluating && evalStage ? (
-          <Text style={styles.stageText}>
+          <AppText variant="caption">
             {evalStage === 'loading-model'
               ? `Loading model… ${elapsedSec}s`
               : `Grading your writing… ${elapsedSec}s${
                   tokenCount > 0 ? ` · ${tokenCount} tokens` : ''
                 }`}
-          </Text>
+          </AppText>
         ) : null}
         <Button
           title={evaluating ? 'Evaluating…' : 'Submit for feedback'}
@@ -368,54 +446,32 @@ export function ExerciseScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  focusTipCard: {
+    marginBottom: spacing.md,
+  },
+  focusTipHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  promptScroll: {
+    maxHeight: '35%',
+  },
   promptCard: {
     marginBottom: spacing.md,
-    gap: spacing.xs,
-  },
-  promptLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   promptText: {
     fontSize: 16,
-    color: colors.text,
-    lineHeight: 22,
   },
   input: {
     flex: 1,
-    backgroundColor: colors.inverse,
-    borderWidth: 1.5,
-    borderColor: colors.inputBorder,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    fontSize: 16,
-    color: colors.text,
-    lineHeight: 22,
-  },
-  inputFocused: {
-    borderColor: colors.primary,
   },
   footer: {
     paddingTop: spacing.md,
     gap: spacing.sm,
   },
-  countOk: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  countLow: {
-    fontSize: 13,
-    color: colors.danger,
-  },
   errorWrap: {
     gap: spacing.sm,
-  },
-  stageText: {
-    fontSize: 13,
-    color: colors.textMuted,
   },
   regenerateButton: {
     marginTop: spacing.xs,
@@ -423,32 +479,6 @@ const styles = StyleSheet.create({
   mcqFooter: {
     marginTop: spacing.md,
     gap: spacing.md,
-  },
-  verdictOk: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.success,
-    fontFamily: fonts.bold,
-  },
-  verdictBad: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.danger,
-    fontFamily: fonts.bold,
-  },
-  tipBox: {
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.sm,
-    padding: spacing.sm + 2,
-  },
-  tipText: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  errorText: {
-    fontSize: 14,
-    color: colors.danger,
   },
   submit: {
     marginBottom: spacing.sm,

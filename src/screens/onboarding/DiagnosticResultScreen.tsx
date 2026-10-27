@@ -1,7 +1,7 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
-import { Button, Card, Chip } from '../../components/ui';
+import { AppText, Button, Card, Chip, Row } from '../../components/ui';
 import { colors, radius, spacing } from '../../theme';
 import { scoreDiagnostic } from '../../data/diagnostic';
 import { useOnboarding } from '../../context/OnboardingContext';
@@ -15,30 +15,32 @@ export function DiagnosticResultScreen({ navigation }: Props) {
 
   return (
     <Screen title="Your starting point" subtitle="Provisional estimate from the diagnostic">
-      <Card style={styles.levelCard}>
+      <Card gap={spacing.md} style={styles.levelCard}>
         <View style={styles.levelBadge}>
-          <Text style={styles.levelText}>{draft.level ?? score.level}</Text>
+          <AppText variant="hero" tone="primary">
+            {draft.level ?? score.level}
+          </AppText>
         </View>
-        <Text style={styles.scoreText}>
+        <AppText variant="body" tone="muted">
           {score.correctCount} of {score.totalCount} correct
-        </Text>
+        </AppText>
       </Card>
-      <Card style={styles.card}>
-        <Text style={styles.sectionTitle}>Areas to watch</Text>
+      <Card gap={spacing.sm} style={styles.card}>
+        <AppText variant="title">Areas to watch</AppText>
         {score.weakAreas.length > 0 ? (
-          <View style={styles.chipRow}>
+          <Row wrap>
             {score.weakAreas.map(area => (
               <Chip key={area} label={area} selected />
             ))}
-          </View>
+          </Row>
         ) : (
-          <Text style={styles.muted}>
+          <AppText variant="bodySmall" tone="muted">
             No recurring issues detected in the diagnostic.
-          </Text>
+          </AppText>
         )}
-        <Text style={styles.muted}>
+        <AppText variant="bodySmall" tone="muted">
           This estimate is refined as you complete real exercises.
-        </Text>
+        </AppText>
       </Card>
       <Button
         title="Continue"
@@ -51,7 +53,6 @@ export function DiagnosticResultScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   levelCard: {
     alignItems: 'center',
-    gap: spacing.md,
     marginBottom: spacing.md,
   },
   levelBadge: {
@@ -62,30 +63,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  levelText: {
-    fontSize: 34,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  scoreText: {
-    fontSize: 15,
-    color: colors.textMuted,
-  },
   card: {
     marginBottom: spacing.lg,
-    gap: spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  muted: {
-    fontSize: 14,
-    color: colors.textMuted,
   },
 });

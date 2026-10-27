@@ -1,7 +1,7 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
-import { Button, Card } from '../../components/ui';
+import { AppText, Button, Card, Row } from '../../components/ui';
 import { colors, spacing } from '../../theme';
 import type { OnboardingStackParamList } from '../../navigation/types';
 
@@ -16,12 +16,14 @@ const HIGHLIGHTS = [
 export function WelcomeScreen({ navigation }: Props) {
   return (
     <Screen title="FluentEdge" subtitle="Your offline English writing tutor">
-      <Card style={styles.card}>
+      <Card gap={spacing.md} style={styles.card}>
         {HIGHLIGHTS.map(highlight => (
-          <View key={highlight} style={styles.highlightRow}>
+          <Row key={highlight} align="center">
             <View style={styles.dot} />
-            <Text style={styles.highlightText}>{highlight}</Text>
-          </View>
+            <AppText variant="body" style={styles.highlightText}>
+              {highlight}
+            </AppText>
+          </Row>
         ))}
       </Card>
       <Button
@@ -36,11 +38,6 @@ const styles = StyleSheet.create({
   card: {
     marginTop: spacing.md,
     marginBottom: spacing.lg,
-    gap: spacing.md,
-  },
-  highlightRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   dot: {
     width: 8,
@@ -51,7 +48,5 @@ const styles = StyleSheet.create({
   },
   highlightText: {
     flex: 1,
-    fontSize: 15,
-    color: colors.text,
   },
 });

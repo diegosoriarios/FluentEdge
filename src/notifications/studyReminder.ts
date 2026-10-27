@@ -5,7 +5,7 @@ import notifee, {
   TriggerType,
 } from '@notifee/react-native';
 import type { Notification } from '@notifee/react-native';
-import { getSessionStats, localDayKey } from '../data';
+import { countDueMistakes, getSessionStats, localDayKey } from '../data';
 import { logDebug } from '../services/debugLog';
 import {
   LOG_TAG,
@@ -56,11 +56,15 @@ async function ensureReminderChannel(): Promise<void> {
   });
 }
 
-function reminderNotification(): Notification {
+export function reminderNotification(dueCount = 0): Notification {
   return {
     id: STUDY_REMINDER_NOTIFICATION_ID,
     title: 'Time to practice',
-    body: 'Keep your streak going — a quick English session takes just 5 minutes.',
+    body:
+      dueCount > 0
+        ? `${dueCount} mistake${dueCount === 1 ? '' : 's'} from past sessions `
+          + 'due for review — a quick session keeps your streak going.'
+        : 'Keep your streak going — a quick English session takes just 5 minutes.',
     android: {
       channelId: STUDY_REMINDER_CHANNEL_ID,
       smallIcon: 'ic_notification',
@@ -79,6 +83,7 @@ export async function refreshStudyReminder(
   await runScheduledExclusively(async () => {
     const { lastSessionAt } = await getSessionStats();
     const timestamp = nextReminderTimestamp(hour, minute, lastSessionAt);
+    const dueCount = await countDueMistakes().catch(() => 0);
 
     await ensureReminderChannel();
     await notifee.cancelTriggerNotifications([STUDY_REMINDER_NOTIFICATION_ID]);
@@ -88,7 +93,10 @@ export async function refreshStudyReminder(
       timestamp,
       repeatFrequency: RepeatFrequency.DAILY,
     };
-    await notifee.createTriggerNotification(reminderNotification(), trigger);
+    await notifee.createTriggerNotification(
+      reminderNotification(dueCount),
+      trigger,
+    );
     logDebug(
       LOG_TAG,
       `study reminder scheduled at ${new Date(timestamp).toISOString()} `

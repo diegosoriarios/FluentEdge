@@ -13,6 +13,7 @@ import {
   getSession,
   getSessionStats,
   getUnansweredDailyQuestions,
+  getWeeklyRecap,
   insertGeneratedDailyQuestion,
   insertSession,
   lastNDaysActivity,
@@ -105,6 +106,7 @@ describe('sessionsRepo', () => {
       '',
       'multiple_choice',
       JSON.stringify(exercise),
+      null,
     ]);
   });
 
@@ -117,6 +119,7 @@ describe('sessionsRepo', () => {
       'Write about your day.',
       '',
       'paragraph',
+      null,
       null,
     ]);
   });
@@ -344,6 +347,47 @@ describe('dailyQuestionsRepo history', () => {
     ]);
     const stats = await getAnsweredDailyQuestionStats();
     expect(stats).toEqual({ total: 4, correct: 3 });
+  });
+});
+
+describe('getWeeklyRecap', () => {
+  it('aggregates week sessions, corrections, and top error type', async () => {
+    const now = Date.now();
+    mockSqlResponse('WHERE created_at >= ?', [
+      {
+        evaluation_json: JSON.stringify({
+          corrections: [
+            { error_type: 'Articles' },
+            { error_type: 'articles' },
+            { error_type: 'Verb Tense' },
+          ],
+        }),
+      },
+      { evaluation_json: null },
+      {
+        evaluation_json: JSON.stringify({ corrections: [] }),
+      },
+    ]);
+    mockSqlResponse('COUNT(*) AS total', [{ total: 3, last_at: now }]);
+    mockSqlResponse('strftime', []);
+    const recap = await getWeeklyRecap(now);
+    expect(recap.sessionCount).toBe(3);
+    expect(recap.correctionsFixed).toBe(3);
+    expect(recap.topErrorType).toBe('articles');
+    expect(recap.streakDays).toBe(0);
+  });
+
+  it('survives corrupt evaluation json', async () => {
+    const now = Date.now();
+    mockSqlResponse('WHERE created_at >= ?', [
+      { evaluation_json: '{not json' },
+    ]);
+    mockSqlResponse('COUNT(*) AS total', [{ total: 1, last_at: now }]);
+    mockSqlResponse('strftime', []);
+    const recap = await getWeeklyRecap(now);
+    expect(recap.sessionCount).toBe(1);
+    expect(recap.correctionsFixed).toBe(0);
+    expect(recap.topErrorType).toBeNull();
   });
 });
 

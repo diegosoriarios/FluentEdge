@@ -43,7 +43,7 @@ export async function readCoreCount(): Promise<number | null> {
 
 export const DEFAULT_N_THREADS = 4;
 export const IOS_N_THREADS = 6;
-export const MAX_N_THREADS = 8;
+export const MAX_N_THREADS = 4;
 
 export async function resolveNThreads(): Promise<number> {
   if (Platform.OS === 'ios') {

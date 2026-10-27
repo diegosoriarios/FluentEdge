@@ -1,8 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
-import { Button, Chip } from '../../components/ui';
-import { colors, spacing } from '../../theme';
+import { AppText, Button, Chip, Row } from '../../components/ui';
+import { spacing } from '../../theme';
 import { useOnboarding } from '../../context/OnboardingContext';
 import type {
   FocusArea,
@@ -41,7 +41,7 @@ export function FocusAreasScreen({ navigation }: Props) {
 
   return (
     <Screen title="Focus areas" subtitle="Select one or more to prioritize">
-      <View style={styles.chipRow}>
+      <Row wrap style={styles.chipRow}>
         {FOCUS_AREAS.map(area => (
           <Chip
             key={area}
@@ -50,12 +50,12 @@ export function FocusAreasScreen({ navigation }: Props) {
             onPress={() => toggle(area)}
           />
         ))}
-      </View>
+      </Row>
       <View style={styles.descriptions}>
         {FOCUS_AREAS.map(area => (
-          <Text key={area} style={styles.description}>
+          <AppText key={area} variant="bodySmall" tone="muted">
             {FOCUS_TITLES[area]}: {FOCUS_DESCRIPTIONS[area]}
-          </Text>
+          </AppText>
         ))}
       </View>
       <Button
@@ -69,16 +69,10 @@ export function FocusAreasScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     marginBottom: spacing.md,
   },
   descriptions: {
     gap: spacing.xs,
     marginBottom: spacing.lg,
-  },
-  description: {
-    fontSize: 14,
-    color: colors.textMuted,
   },
 });

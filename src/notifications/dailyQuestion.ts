@@ -28,7 +28,7 @@ export const IOS_CATEGORY_ID = 'daily_question';
 export const DEFAULT_HOUR = 19;
 export const DEFAULT_MINUTE = 0;
 export const DAILY_WINDOW_DAYS = 14;
-export const MAX_GENERATED_PER_REPLENISH = 3;
+export const MAX_GENERATED_PER_REPLENISH = 1;
 export const LOG_TAG = 'notifications';
 export const STUDY_REMINDER_PRESS_ACTION_ID = 'open-study';
 

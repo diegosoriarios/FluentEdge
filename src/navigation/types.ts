@@ -61,6 +61,7 @@ export type SessionSummary = {
   type: ExerciseType;
   exercise: MultipleChoiceExercise | null;
   chosenIndex: number | null;
+  mistakeId: string | null;
 };
 
 export type RootStackParamList = {
@@ -70,7 +71,6 @@ export type RootStackParamList = {
   Feedback: { sessionId: string };
   SessionDetail: { sessionId: string };
   Lesson: { questionId: string };
-  QuestionHistory: undefined;
 };
 
 export type OnboardingStackParamList = {

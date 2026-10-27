@@ -1,10 +1,19 @@
 import {
+  DEFAULT_N_THREADS,
+  MAX_N_THREADS,
   evaluateCapabilities,
   readCoreCountSync,
   readTotalRamBytesSync,
 } from '../deviceCapabilities';
 
 const GB = 1_000_000_000;
+
+describe('generation thread limits', () => {
+  it('caps android threads at the performance-cluster size', () => {
+    expect(MAX_N_THREADS).toBe(4);
+    expect(DEFAULT_N_THREADS).toBe(4);
+  });
+});
 
 describe('readCoreCountSync', () => {
   it('counts processor entries in cpuinfo', () => {

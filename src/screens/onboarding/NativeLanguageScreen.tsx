@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { StyleSheet, TextInput } from 'react-native';
+import { StyleSheet } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
-import { Button } from '../../components/ui';
-import { colors, radius, spacing } from '../../theme';
+import { Button, Input } from '../../components/ui';
+import { spacing } from '../../theme';
 import { useOnboarding } from '../../context/OnboardingContext';
 import type { OnboardingStackParamList } from '../../navigation/types';
 
@@ -24,11 +24,10 @@ export function NativeLanguageScreen({ navigation }: Props) {
       title="Your native language"
       subtitle="Optional — helps anticipate typical mistakes"
       avoidKeyboard>
-      <TextInput
+      <Input
         value={value}
         onChangeText={setValue}
         placeholder="e.g. Portuguese"
-        placeholderTextColor={colors.subdued}
         style={styles.input}
         autoCorrect={false}
         autoCapitalize="words"
@@ -41,13 +40,6 @@ export function NativeLanguageScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   input: {
-    backgroundColor: colors.inverse,
-    borderWidth: 1.5,
-    borderColor: colors.inputBorder,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    fontSize: 16,
-    color: colors.text,
     marginBottom: spacing.lg,
   },
   skip: {

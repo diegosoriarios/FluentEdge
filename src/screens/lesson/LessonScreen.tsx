@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
-import { Button, Card, SectionLabel } from '../../components/ui';
-import { AnswerChoices } from '../../components/AnswerChoices';
-import { colors, spacing } from '../../theme';
+import {
+  AnswerChoices,
+  AppText,
+  Button,
+  Card,
+  SectionLabel,
+} from '../../components/ui';
+import { spacing } from '../../theme';
 import {
   getDailyQuestion,
   markDailyQuestionViewed,
@@ -72,9 +77,9 @@ export function LessonScreen({ route }: Props) {
   if (!question) {
     return (
       <Screen title="Daily lesson" subtitle="Question not found">
-        <Text style={styles.muted}>
+        <AppText variant="bodySmall" tone="muted">
           This question is no longer available on this device.
-        </Text>
+        </AppText>
       </Screen>
     );
   }
@@ -84,9 +89,9 @@ export function LessonScreen({ route }: Props) {
 
   return (
     <Screen title="Daily lesson">
-      <Card style={styles.card}>
+      <Card gap={spacing.md} style={styles.card}>
         <SectionLabel>Question</SectionLabel>
-        <Text style={styles.questionText}>{question.question}</Text>
+        <AppText variant="heading">{question.question}</AppText>
         <AnswerChoices
           options={question.options}
           answerIndex={question.answerIndex}
@@ -95,15 +100,18 @@ export function LessonScreen({ route }: Props) {
           onSelect={answered ? undefined : setSelected}
         />
         {answered ? (
-          <Text style={correct ? styles.resultCorrect : styles.resultWrong}>
+          <AppText
+            variant="body"
+            tone={correct ? 'success' : 'danger'}
+            style={styles.resultText}>
             {correct ? 'Correct!' : 'Not quite — see below.'}
-          </Text>
+          </AppText>
         ) : null}
       </Card>
       {answered ? (
-        <Card style={styles.card}>
+        <Card gap={spacing.md} style={styles.card}>
           <SectionLabel>Why</SectionLabel>
-          <Text style={styles.explanation}>{question.explanation}</Text>
+          <AppText variant="body">{question.explanation}</AppText>
         </Card>
       ) : (
         <Button
@@ -120,30 +128,8 @@ export function LessonScreen({ route }: Props) {
 const styles = StyleSheet.create({
   card: {
     marginBottom: spacing.md,
-    gap: spacing.md,
   },
-  questionText: {
-    fontSize: 17,
+  resultText: {
     fontWeight: '600',
-    color: colors.text,
-  },
-  resultCorrect: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.success,
-  },
-  resultWrong: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.danger,
-  },
-  explanation: {
-    fontSize: 15,
-    color: colors.text,
-    lineHeight: 21,
-  },
-  muted: {
-    fontSize: 14,
-    color: colors.textMuted,
   },
 });

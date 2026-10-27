@@ -1,8 +1,14 @@
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
-import { Button, Card, ProgressBar } from '../../components/ui';
+import {
+  AppText,
+  Button,
+  Card,
+  ProgressBar,
+  Row,
+} from '../../components/ui';
 import { colors, spacing } from '../../theme';
 import { MODEL_VARIANTS } from '../../ai/modelConfig';
 import type { ModelVariant } from '../../ai/modelConfig';
@@ -54,16 +60,15 @@ export function ModelDownloadScreen(_props: Props) {
     const config = MODEL_VARIANTS[variant];
     return (
       <View key={variant} style={styles.variantBlock}>
-        <Text
-          style={[
-            styles.variantTitle,
-            recommendSmall && variant === 'small' && styles.variantRecommended,
-          ]}>
+        <AppText
+          variant="bodySmall"
+          tone={recommendSmall && variant === 'small' ? 'primary' : 'muted'}
+          style={styles.variantTitle}>
           {config.shortLabel}
           {recommendSmall && variant === 'small'
             ? ' — recommended for this device'
             : ''}
-        </Text>
+        </AppText>
         <Button
           title={`Download over Wi-Fi (${formatBytes(config.bytes)})`}
           disabled={blocked}
@@ -82,34 +87,38 @@ export function ModelDownloadScreen(_props: Props) {
 
   return (
     <Screen title="Download the AI model" subtitle="One-time setup">
-      <Card style={styles.card}>
-        <Text style={styles.body}>
+      <Card gap={spacing.md} style={styles.card}>
+        <AppText variant="body">
           FluentEdge runs a local language model entirely on your device.
           Download it to enable exercises — your writing never leaves the
           phone.
-        </Text>
+        </AppText>
         {modelState === 'downloading' || modelState === 'paused' ? (
           <View style={styles.progressColumn}>
             <ProgressBar progress={progress} />
-            <Text style={styles.progressText}>
+            <AppText variant="bodySmall" tone="muted">
               {modelState === 'paused' ? 'Paused at ' : 'Downloading… '}
               {Math.round(progress * 100)}%
-            </Text>
+            </AppText>
           </View>
         ) : null}
         {modelState === 'verifying' ? (
-          <View style={styles.progressWrap}>
+          <Row align="center" gap={spacing.sm}>
             <ActivityIndicator color={colors.primary} />
-            <Text style={styles.progressText}>Verifying download…</Text>
-          </View>
+            <AppText variant="bodySmall" tone="muted">
+              Verifying download…
+            </AppText>
+          </Row>
         ) : null}
         {modelState === 'ready' ? (
-          <Text style={styles.success}>
+          <AppText variant="body" tone="success" style={styles.accent}>
             {MODEL_VARIANTS[activeVariant].shortLabel} model ready.
-          </Text>
+          </AppText>
         ) : null}
         {modelState === 'error' && errorMessage ? (
-          <Text style={styles.error}>{errorMessage}</Text>
+          <AppText variant="body" tone="danger" style={styles.accent}>
+            {errorMessage}
+          </AppText>
         ) : null}
       </Card>
 
@@ -117,39 +126,37 @@ export function ModelDownloadScreen(_props: Props) {
         <>
           {deviceCapability ? (
             <Card
-              style={[
-                styles.capabilityCard,
-                blocked && styles.capabilityBlocked,
-                recommendSmall && styles.capabilityWarn,
-              ]}>
-              <Text
-                style={[
-                  styles.capabilityTitle,
-                  blocked && styles.error,
-                  recommendSmall && styles.warn,
-                ]}>
+              gap={spacing.xs}
+              tone={blocked ? 'danger' : recommendSmall ? 'primary' : 'default'}
+              style={styles.capabilityCard}>
+              <AppText
+                variant="body"
+                style={styles.accent}
+                tone={
+                  blocked ? 'danger' : recommendSmall ? 'primary' : 'text'
+                }>
                 {blocked
                   ? 'Device below minimum requirements'
                   : recommendSmall
                     ? 'Consider the smaller model'
                     : 'Device check passed'}
-              </Text>
-              <Text style={styles.capabilityText}>
+              </AppText>
+              <AppText variant="caption">
                 RAM: {ramLabel ?? 'unable to verify'}
                 {freeSpaceLabel ? ` · Free storage: ${freeSpaceLabel}` : ''}
-              </Text>
+              </AppText>
               {blocked ? (
-                <Text style={styles.capabilityText}>
+                <AppText variant="caption">
                   This device does not meet the minimum specs for on-device
                   inference. You can still explore the app, but exercises need
                   a supported device.
-                </Text>
+                </AppText>
               ) : null}
               {recommendSmall ? (
-                <Text style={styles.capabilityText}>
+                <AppText variant="caption">
                   With about {ramLabel ?? '3 GB'} of RAM, the smaller model
                   avoids memory issues at a small quality cost.
-                </Text>
+                </AppText>
               ) : null}
             </Card>
           ) : null}
@@ -158,28 +165,28 @@ export function ModelDownloadScreen(_props: Props) {
             ? renderVariantButtons('small')
             : null}
           {!blocked && !recommendSmall && modelState !== 'error' ? (
-            <Text style={styles.cellularWarning}>
+            <AppText variant="caption" style={styles.cellularWarning}>
               Cellular downloads use a large amount of mobile data.
-            </Text>
+            </AppText>
           ) : null}
         </>
       ) : null}
 
       {modelState === 'downloading' ? (
         pauseSupported ? (
-          <View style={styles.row}>
+          <Row gap={spacing.sm}>
             <Button title="Pause" variant="secondary" onPress={pauseDownload} style={styles.half} />
             <Button title="Cancel" variant="danger" onPress={cancelDownload} style={styles.half} />
-          </View>
+          </Row>
         ) : (
           <Button title="Cancel" variant="danger" onPress={cancelDownload} />
         )
       ) : null}
       {modelState === 'paused' ? (
-        <View style={styles.row}>
+        <Row gap={spacing.sm}>
           <Button title="Resume" onPress={resumeDownload} style={styles.half} />
           <Button title="Cancel" variant="danger" onPress={cancelDownload} style={styles.half} />
-        </View>
+        </Row>
       ) : null}
       {modelState === 'downloading' ||
       modelState === 'paused' ||
@@ -202,74 +209,22 @@ export function ModelDownloadScreen(_props: Props) {
 const styles = StyleSheet.create({
   card: {
     marginBottom: spacing.md,
-    gap: spacing.md,
-  },
-  body: {
-    fontSize: 15,
-    color: colors.text,
-    lineHeight: 22,
   },
   progressColumn: {
     gap: spacing.sm,
   },
-  progressWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  progressText: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  success: {
-    fontSize: 15,
+  accent: {
     fontWeight: '600',
-    color: colors.success,
-  },
-  error: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.danger,
-  },
-  warn: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.primary,
   },
   capabilityCard: {
     marginBottom: spacing.md,
-    gap: spacing.xs,
-  },
-  capabilityBlocked: {
-    borderColor: colors.danger,
-  },
-  capabilityWarn: {
-    borderColor: colors.primary,
-  },
-  capabilityTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  capabilityText: {
-    fontSize: 13,
-    color: colors.textMuted,
   },
   variantBlock: {
     gap: spacing.sm,
     marginBottom: spacing.md,
   },
   variantTitle: {
-    fontSize: 14,
     fontWeight: '600',
-    color: colors.textMuted,
-  },
-  variantRecommended: {
-    color: colors.primary,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: spacing.sm,
   },
   half: {
     flex: 1,
@@ -278,8 +233,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   cellularWarning: {
-    fontSize: 13,
-    color: colors.textMuted,
     textAlign: 'center',
     marginTop: spacing.sm,
   },

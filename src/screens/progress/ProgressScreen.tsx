@@ -1,16 +1,18 @@
 import { useCallback, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../../components/Screen';
-import { Button, Card, Chip } from '../../components/ui';
-import { colors, spacing } from '../../theme';
+import { AppText, Card, Chip, Row } from '../../components/ui';
+import { spacing } from '../../theme';
 import { usePaginatedSessions } from '../../hooks/useSessionData';
 import { deleteSession } from '../../data';
 import { exerciseTypeLabel } from '../../utils/exercises';
 import { formatDateTime } from '../../utils/format';
+import { WeeklyRecapCard } from './WeeklyRecapCard';
+import { QuestionHistoryList } from './QuestionHistoryList';
 import type {
   MainTabParamList,
   RootStackParamList,
@@ -21,6 +23,13 @@ type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Progress'>,
   NativeStackScreenProps<RootStackParamList>
 >;
+
+type HistoryTab = 'sessions' | 'questions';
+
+const HISTORY_TAB_LABELS: Record<HistoryTab, string> = {
+  sessions: 'Sessions',
+  questions: 'Questions',
+};
 
 type Range = 'week' | 'month' | 'all';
 
@@ -39,6 +48,7 @@ const RANGE_LABELS: Record<Range, string> = {
 export function ProgressScreen({ navigation }: Props) {
   const { sessions, loading, loadingMore, hasMore, reload, loadMore } =
     usePaginatedSessions();
+  const [tab, setTab] = useState<HistoryTab>('sessions');
   const [range, setRange] = useState<Range>('all');
 
   useFocusEffect(
@@ -73,111 +83,113 @@ export function ProgressScreen({ navigation }: Props) {
   };
 
   return (
-    <Screen title="Progress" subtitle={`${sessions.length} shown${hasMore ? ' · more available' : ''}`}>
-      <Button
-        title="Question history"
-        variant="secondary"
-        onPress={() => navigation.navigate('QuestionHistory')}
-        style={styles.historyButton}
-      />
-      <View style={styles.rangeRow}>
-        {(Object.keys(RANGE_LABELS) as Range[]).map(key => (
+    <Screen
+      title="Progress"
+      subtitle={
+        tab === 'sessions'
+          ? `${sessions.length} shown${hasMore ? ' · more available' : ''}`
+          : undefined
+      }>
+      <Row wrap style={styles.tabRow}>
+        {(Object.keys(HISTORY_TAB_LABELS) as HistoryTab[]).map(key => (
           <Chip
             key={key}
-            label={RANGE_LABELS[key]}
-            selected={range === key}
-            onPress={() => setRange(key)}
+            label={HISTORY_TAB_LABELS[key]}
+            selected={tab === key}
+            onPress={() => setTab(key)}
           />
         ))}
-      </View>
-      <FlatList
-        data={filtered}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => {
-          const errorCount = item.evaluation?.corrections.length ?? 0;
-          return (
-            <Pressable
-              onPress={() =>
-                navigation.navigate('SessionDetail', { sessionId: item.id })
-              }
-              onLongPress={() => confirmDelete(item)}>
-              <Card style={styles.sessionCard}>
-                <Text style={styles.date}>{formatDateTime(item.createdAt)}</Text>
-                <Text style={styles.prompt} numberOfLines={2}>
-                  {item.prompt}
-                </Text>
-                <View style={styles.metaRow}>
-                  <Chip label={exerciseTypeLabel(item.type)} />
-                  <Chip
-                    label={
-                      item.evaluation
-                        ? `${errorCount} correction${errorCount === 1 ? '' : 's'}`
-                        : 'Not evaluated'
-                    }
-                  />
+      </Row>
+      {tab === 'sessions' ? (
+        <>
+          <WeeklyRecapCard />
+          <Row wrap style={styles.rangeRow}>
+            {(Object.keys(RANGE_LABELS) as Range[]).map(key => (
+              <Chip
+                key={key}
+                label={RANGE_LABELS[key]}
+                selected={range === key}
+                onPress={() => setRange(key)}
+              />
+            ))}
+          </Row>
+          <FlatList
+            data={filtered}
+            keyExtractor={item => item.id}
+            renderItem={({ item }) => {
+              const errorCount = item.evaluation?.corrections.length ?? 0;
+              return (
+                <Pressable
+                  onPress={() =>
+                    navigation.navigate('SessionDetail', { sessionId: item.id })
+                  }
+                  onLongPress={() => confirmDelete(item)}>
+                  <Card gap={spacing.xs}>
+                    <AppText variant="micro">
+                      {formatDateTime(item.createdAt)}
+                    </AppText>
+                    <AppText variant="body" numberOfLines={2}>
+                      {item.prompt}
+                    </AppText>
+                    <Row wrap gap={spacing.xs}>
+                      <Chip label={exerciseTypeLabel(item.type)} />
+                      {item.mistakeId ? <Chip label="Review" /> : null}
+                      <Chip
+                        label={
+                          item.evaluation
+                            ? `${errorCount} correction${errorCount === 1 ? '' : 's'}`
+                            : 'Not evaluated'
+                        }
+                      />
+                    </Row>
+                  </Card>
+                </Pressable>
+              );
+            }}
+            ListEmptyComponent={
+              <AppText variant="body" tone="muted" style={styles.empty}>
+                {loading
+                  ? 'Loading…'
+                  : 'No sessions yet. Complete an exercise to see it here.'}
+              </AppText>
+            }
+            ListFooterComponent={
+              hasMore ? (
+                <View style={styles.footerRow}>
+                  {loadingMore ? (
+                    <AppText variant="body" tone="muted" style={styles.empty}>
+                      Loading more…
+                    </AppText>
+                  ) : (
+                    <Chip label="Load more" onPress={loadMore} />
+                  )}
                 </View>
-              </Card>
-            </Pressable>
-          );
-        }}
-        ListEmptyComponent={
-          <Text style={styles.empty}>
-            {loading
-              ? 'Loading…'
-              : 'No sessions yet. Complete an exercise to see it here.'}
-          </Text>
-        }
-        ListFooterComponent={
-          hasMore ? (
-            <View style={styles.footerRow}>
-              {loadingMore ? (
-                <Text style={styles.empty}>Loading more…</Text>
-              ) : (
-                <Chip label="Load more" onPress={loadMore} />
-              )}
-            </View>
-          ) : undefined
-        }
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
-        contentContainerStyle={styles.listContent}
-      />
+              ) : undefined
+            }
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.5}
+            contentContainerStyle={styles.listContent}
+          />
+        </>
+      ) : (
+        <QuestionHistoryList />
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  historyButton: {
+  tabRow: {
     marginBottom: spacing.md,
   },
   rangeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     marginBottom: spacing.md,
   },
   listContent: {
     gap: spacing.sm,
     paddingBottom: spacing.lg,
   },
-  sessionCard: {
-    gap: spacing.xs,
-  },
-  date: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  prompt: {
-    fontSize: 15,
-    color: colors.text,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
   empty: {
-    fontSize: 15,
-    color: colors.textMuted,
     textAlign: 'center',
     marginTop: spacing.xl,
   },

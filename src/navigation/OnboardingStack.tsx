@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { AppText } from '../components/ui';
 import { colors, spacing } from '../theme';
 import { useProfile } from '../context/ProfileContext';
 import { useOnboarding } from '../context/OnboardingContext';
@@ -45,7 +46,9 @@ export function OnboardingStack() {
           accessibilityLabel="Cancel retake"
           style={[styles.cancelButton, { top: insets.top + spacing.sm }]}
           onPress={handleCancelRetake}>
-          <Text style={styles.cancelText}>✕ Cancel retake</Text>
+          <AppText variant="caption" tone="danger" style={styles.cancelText}>
+            ✕ Cancel retake
+          </AppText>
         </Pressable>
       ) : null}
     </View>
@@ -67,8 +70,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm + 2,
   },
   cancelText: {
-    fontSize: 13,
     fontWeight: '600',
-    color: colors.danger,
   },
 });

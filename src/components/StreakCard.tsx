@@ -1,9 +1,9 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { lastNDaysActivity } from '../data';
+import { AppText, Card } from './ui';
 import { colors, fonts, spacing } from '../theme';
-import { Card } from './ui';
 
 type Props = {
   streakDays: number;
@@ -32,10 +32,19 @@ export function StreakCard({ streakDays, practiceDays, style }: Props) {
       </View>
       <View style={styles.info}>
         <View style={styles.countRow}>
-          <Text style={styles.count}>{streakDays}</Text>
-          <Text style={styles.countLabel}>day streak</Text>
+          <AppText variant="display" tone="streak" style={styles.count}>
+            {streakDays}
+          </AppText>
+          <AppText
+            variant="bodySmall"
+            tone="muted"
+            style={styles.countLabel}>
+            day streak
+          </AppText>
         </View>
-        <Text style={styles.caption}>{caption}</Text>
+        <AppText variant="caption" style={styles.caption}>
+          {caption}
+        </AppText>
         <View style={styles.dots}>
           {activity.map((active, index) => {
             const isToday = index === activity.length - 1;
@@ -79,21 +88,13 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   count: {
-    fontSize: 28,
     lineHeight: 32,
-    fontWeight: '800',
-    fontFamily: fonts.extrabold,
-    color: colors.streak,
   },
   countLabel: {
     marginLeft: spacing.sm,
-    fontSize: 14,
-    color: colors.textMuted,
     fontFamily: fonts.medium,
   },
   caption: {
-    fontSize: 13,
-    color: colors.textMuted,
     fontFamily: fonts.regular,
   },
   dots: {

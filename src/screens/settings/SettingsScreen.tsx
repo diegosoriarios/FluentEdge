@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Alert, AppState, Platform, ScrollView, Share, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, AppState, Platform, ScrollView, Share, StyleSheet, Switch, View } from 'react-native';
 import notifee from '@notifee/react-native';
 import { Screen } from '../../components/Screen';
-import { Button, Card, Chip, ProgressBar, SectionLabel } from '../../components/ui';
+import { AppText, Button, Card, Chip, ProgressBar, Row, SectionLabel } from '../../components/ui';
 import { colors, spacing } from '../../theme';
 import { useProfile } from '../../context/ProfileContext';
 import { useModel } from '../../context/ModelContext';
@@ -314,22 +314,34 @@ export function SettingsScreen() {
     <Screen
       title="Settings"
       onTitleLongPress={() => setDevPanelsVisible(visible => !visible)}>
-      <Card style={styles.card}>
+      <Card gap={spacing.sm} style={styles.card}>
         <SectionLabel>Profile</SectionLabel>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Level</Text>
-          <Text style={styles.rowValue}>{profile.level}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Goal</Text>
-          <Text style={styles.rowValue}>{GOAL_LABELS[profile.goal]}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Native language</Text>
-          <Text style={styles.rowValue}>{profile.nativeLanguage ?? 'Not set'}</Text>
-        </View>
+        <Row justify="space-between">
+          <AppText variant="body" tone="muted">
+            Level
+          </AppText>
+          <AppText variant="body" style={styles.rowValue}>
+            {profile.level}
+          </AppText>
+        </Row>
+        <Row justify="space-between">
+          <AppText variant="body" tone="muted">
+            Goal
+          </AppText>
+          <AppText variant="body" style={styles.rowValue}>
+            {GOAL_LABELS[profile.goal]}
+          </AppText>
+        </Row>
+        <Row justify="space-between">
+          <AppText variant="body" tone="muted">
+            Native language
+          </AppText>
+          <AppText variant="body" style={styles.rowValue}>
+            {profile.nativeLanguage ?? 'Not set'}
+          </AppText>
+        </Row>
         <SectionLabel>Focus areas</SectionLabel>
-        <View style={styles.chipRow}>
+        <Row wrap>
           {FOCUS_AREAS.map(area => (
             <Chip
               key={area}
@@ -338,14 +350,16 @@ export function SettingsScreen() {
               onPress={() => toggleFocusArea(area)}
             />
           ))}
-        </View>
+        </Row>
       </Card>
 
-      <Card style={styles.card}>
+      <Card gap={spacing.sm} style={styles.card}>
         <SectionLabel>Languages</SectionLabel>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Practicing</Text>
-          <View style={styles.chipRowRight}>
+        <Row justify="space-between">
+          <AppText variant="body" tone="muted">
+            Practicing
+          </AppText>
+          <Row wrap justify="flex-end">
             {LANGUAGE_CODES.map(code => (
               <Chip
                 key={code}
@@ -354,11 +368,13 @@ export function SettingsScreen() {
                 onPress={() => setTargetLanguage(code)}
               />
             ))}
-          </View>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Explanations in</Text>
-          <View style={styles.chipRowRight}>
+          </Row>
+        </Row>
+        <Row justify="space-between">
+          <AppText variant="body" tone="muted">
+            Explanations in
+          </AppText>
+          <Row wrap justify="flex-end">
             {LANGUAGE_CODES.map(code => (
               <Chip
                 key={code}
@@ -371,64 +387,78 @@ export function SettingsScreen() {
                 onPress={() => setExplanationLanguage(code)}
               />
             ))}
-          </View>
-        </View>
-        <Text style={styles.muted}>
+          </Row>
+        </Row>
+        <AppText variant="bodySmall" tone="muted">
           Prompts and grading adapt to the practice language.
-        </Text>
+        </AppText>
       </Card>
 
-      <Card style={styles.card}>
+      <Card gap={spacing.sm} style={styles.card}>
         <SectionLabel>AI model</SectionLabel>
-        <Text
-          style={[
-            styles.modelState,
-            modelState === 'ready' && { color: colors.success },
-            modelState === 'error' && { color: colors.danger },
-          ]}>
+        <AppText
+          variant="body"
+          tone={
+            modelState === 'ready'
+              ? 'success'
+              : modelState === 'error'
+                ? 'danger'
+                : 'text'
+          }
+          style={styles.rowValue}>
           {MODEL_STATE_LABELS[modelState]}
-        </Text>
+        </AppText>
         {modelState === 'ready' && modelInfo ? (
           <View style={styles.modelInfoWrap}>
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>Model</Text>
-              <Text style={styles.rowValue}>{modelInfo.label}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>Size on disk</Text>
-              <Text style={styles.rowValue}>
+            <Row justify="space-between">
+              <AppText variant="body" tone="muted">
+                Model
+              </AppText>
+              <AppText variant="body" style={styles.rowValue}>
+                {modelInfo.label}
+              </AppText>
+            </Row>
+            <Row justify="space-between">
+              <AppText variant="body" tone="muted">
+                Size on disk
+              </AppText>
+              <AppText variant="body" style={styles.rowValue}>
                 {modelInfo.sizeBytes != null
                   ? formatBytes(modelInfo.sizeBytes)
                   : 'Unknown'}
-              </Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>Checksum</Text>
-              <Text style={styles.rowValue}>
+              </AppText>
+            </Row>
+            <Row justify="space-between">
+              <AppText variant="body" tone="muted">
+                Checksum
+              </AppText>
+              <AppText variant="body" style={styles.rowValue}>
                 {modelInfo.sha256.slice(0, 12)}…
-              </Text>
-            </View>
+              </AppText>
+            </Row>
           </View>
         ) : null}
         {(modelState === 'downloading' || modelState === 'paused') && (
           <View style={styles.progressColumn}>
             <ProgressBar progress={progress} />
-            <Text style={styles.progressText}>
+            <AppText variant="caption">
               {modelState === 'paused' ? 'Paused at ' : 'Downloading… '}
               {Math.round(progress * 100)}%
-            </Text>
+            </AppText>
           </View>
         )}
         {modelState === 'error' && errorMessage ? (
-          <Text style={styles.errorText}>{errorMessage}</Text>
+          <AppText variant="caption" tone="danger">
+            {errorMessage}
+          </AppText>
         ) : null}
         {deviceCapability ? (
-          <Text style={styles.muted}>
+          <AppText variant="bodySmall" tone="muted">
             Free storage: {formatBytes(deviceCapability.freeSpaceBytes)}
             {deviceCapability.ramBytes != null
               ? ` · RAM: ${formatBytes(deviceCapability.ramBytes)}`
               : ''}
-          </Text>
+          </AppText>
         ) : null}
         {modelState === 'not-downloaded' || modelState === 'error' ? (
           <>
@@ -461,7 +491,7 @@ export function SettingsScreen() {
         ) : null}
         {modelState === 'downloading' ? (
           pauseSupported ? (
-            <View style={styles.buttonRow}>
+            <Row>
               <Button
                 title="Pause"
                 variant="secondary"
@@ -474,7 +504,7 @@ export function SettingsScreen() {
                 onPress={cancelDownload}
                 style={styles.half}
               />
-            </View>
+            </Row>
           ) : (
             <Button
               title="Cancel"
@@ -485,7 +515,7 @@ export function SettingsScreen() {
           )
         ) : null}
         {modelState === 'paused' ? (
-          <View style={styles.buttonRow}>
+          <Row>
             <Button title="Resume" onPress={resumeDownload} style={styles.half} />
             <Button
               title="Cancel"
@@ -493,7 +523,7 @@ export function SettingsScreen() {
               onPress={cancelDownload}
               style={styles.half}
             />
-          </View>
+          </Row>
         ) : null}
         {modelState === 'ready' ? (
           <Button
@@ -505,14 +535,16 @@ export function SettingsScreen() {
         ) : null}
       </Card>
 
-      <Card style={styles.card}>
+      <Card gap={spacing.sm} style={styles.card}>
         <SectionLabel>Practice reminders</SectionLabel>
-        <View style={styles.toggleRow}>
+        <Row align="center" gap={spacing.sm}>
           <View style={styles.toggleText}>
-            <Text style={styles.toggleTitle}>Daily grammar question</Text>
-            <Text style={styles.muted}>
+            <AppText variant="body" style={styles.rowValue}>
+              Daily grammar question
+            </AppText>
+            <AppText variant="bodySmall" tone="muted">
               A question with 3 answer options at {DEFAULT_HOUR}:00.
-            </Text>
+            </AppText>
           </View>
           <Switch
             value={profile.notificationsEnabled ?? false}
@@ -520,14 +552,16 @@ export function SettingsScreen() {
             disabled={togglingNotifications}
             trackColor={{ true: colors.primary }}
           />
-        </View>
-        <View style={styles.toggleRow}>
+        </Row>
+        <Row align="center" gap={spacing.sm}>
           <View style={styles.toggleText}>
-            <Text style={styles.toggleTitle}>Study reminder</Text>
-            <Text style={styles.muted}>
+            <AppText variant="body" style={styles.rowValue}>
+              Study reminder
+            </AppText>
+            <AppText variant="bodySmall" tone="muted">
               A nudge to open the app and take a practice — skipped
               automatically on days you already practiced.
-            </Text>
+            </AppText>
           </View>
           <Switch
             value={reminderOn}
@@ -535,11 +569,13 @@ export function SettingsScreen() {
             disabled={togglingReminder}
             trackColor={{ true: colors.primary }}
           />
-        </View>
+        </Row>
         {reminderOn ? (
           <View style={styles.timeRow}>
-            <Text style={styles.rowLabel}>Reminder time</Text>
-            <View style={styles.timeControls}>
+            <AppText variant="body" tone="muted">
+              Reminder time
+            </AppText>
+            <Row align="center" gap={spacing.xs}>
               <Button
                 title="−"
                 variant="secondary"
@@ -547,9 +583,9 @@ export function SettingsScreen() {
                 disabled={adjustingReminder}
                 style={styles.stepper}
               />
-              <Text style={styles.timeText}>
+              <AppText variant="body" style={styles.timeText}>
                 {formatReminderTime(reminderHour, reminderMinute)}
-              </Text>
+              </AppText>
               <Button
                 title="+"
                 variant="secondary"
@@ -571,34 +607,37 @@ export function SettingsScreen() {
                 disabled={adjustingReminder}
                 style={styles.stepper}
               />
-            </View>
+            </Row>
           </View>
         ) : null}
       </Card>
 
       {Platform.OS === 'android' ? (
-        <Card style={styles.card}>
+        <Card gap={spacing.sm} style={styles.card}>
           <SectionLabel>Notification diagnostics</SectionLabel>
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Battery optimization</Text>
-            <Text
-              style={[
-                styles.rowValue,
-                batteryOptimization && { color: colors.danger },
-              ]}>
+          <Row justify="space-between">
+            <AppText variant="body" tone="muted">
+              Battery optimization
+            </AppText>
+            <AppText
+              variant="body"
+              tone={batteryOptimization ? 'danger' : 'text'}
+              style={styles.rowValue}>
               {batteryOptimization == null
                 ? 'Checking…'
                 : batteryOptimization
                   ? 'Restricted'
                   : 'OK'}
-            </Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Power manager</Text>
-            <Text style={styles.rowValue}>
+            </AppText>
+          </Row>
+          <Row justify="space-between">
+            <AppText variant="body" tone="muted">
+              Power manager
+            </AppText>
+            <AppText variant="body" style={styles.rowValue}>
               {powerManagerActivity ?? 'Normal'}
-            </Text>
-          </View>
+            </AppText>
+          </Row>
           {batteryOptimization ? (
             <Button
               title="Allow unrestricted battery use"
@@ -621,16 +660,16 @@ export function SettingsScreen() {
             onPress={openAlarmPermissionSettings}
             style={styles.action}
           />
-          <Text style={styles.muted}>
+          <AppText variant="bodySmall" tone="muted">
             If reminders arrive late or not at all, allow exact alarms and
             remove battery restrictions for FluentEdge.
-          </Text>
+          </AppText>
         </Card>
       ) : null}
 
       {devPanelsVisible ? (
         <>
-          <Card style={styles.card}>
+          <Card gap={spacing.sm} style={styles.card}>
             <SectionLabel>Debug</SectionLabel>
             <Button
               title={
@@ -644,18 +683,18 @@ export function SettingsScreen() {
               loading={sendingTestNotification}
             />
             {testNotificationStatus ? (
-              <Text style={styles.debugStatus}>{testNotificationStatus}</Text>
+              <AppText variant="caption">{testNotificationStatus}</AppText>
             ) : null}
           </Card>
 
-          <Card style={styles.card}>
+          <Card gap={spacing.sm} style={styles.card}>
             <SectionLabel>Download diagnostics</SectionLabel>
             <ScrollView style={styles.debugLogBox} nestedScrollEnabled>
-              <Text style={styles.debugLogText} selectable>
+              <AppText variant="mono" selectable>
                 {debugLogText || 'No log entries yet.'}
-              </Text>
+              </AppText>
             </ScrollView>
-            <View style={styles.buttonRow}>
+            <Row>
               <Button
                 title="Share logs"
                 variant="secondary"
@@ -668,7 +707,7 @@ export function SettingsScreen() {
                 onPress={handleClearLogs}
                 style={styles.half}
               />
-            </View>
+            </Row>
           </Card>
 
           <Button
@@ -685,33 +724,9 @@ export function SettingsScreen() {
 const styles = StyleSheet.create({
   card: {
     marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  rowLabel: {
-    fontSize: 15,
-    color: colors.textMuted,
   },
   rowValue: {
-    fontSize: 15,
     fontWeight: '600',
-    color: colors.text,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
   },
   toggleText: {
     flex: 1,
@@ -720,53 +735,18 @@ const styles = StyleSheet.create({
   timeRow: {
     gap: spacing.xs,
   },
-  timeControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
   timeText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
     minWidth: 48,
     textAlign: 'center',
   },
   stepper: {
     paddingHorizontal: spacing.sm,
   },
-  toggleTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  modelState: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-  },
   modelInfoWrap: {
     gap: spacing.xs,
   },
-  chipRowRight: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-  },
   progressColumn: {
     gap: spacing.xs,
-  },
-  progressText: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  errorText: {
-    fontSize: 13,
-    color: colors.danger,
-  },
-  muted: {
-    fontSize: 14,
-    color: colors.textMuted,
   },
   action: {
     marginTop: spacing.xs,
@@ -781,15 +761,5 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: spacing.sm,
     backgroundColor: colors.inverse,
-  },
-  debugLogText: {
-    fontSize: 11,
-    lineHeight: 15,
-    color: colors.textMuted,
-    fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
-  },
-  debugStatus: {
-    fontSize: 13,
-    color: colors.textMuted,
   },
 });
