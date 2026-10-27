@@ -174,7 +174,9 @@ function McqFeedback({ session }: { session: SessionSummary }) {
         <AppText variant="verdict" tone={correct ? 'success' : 'danger'}>
           {correct ? 'Correct!' : 'Not quite.'}
         </AppText>
-        <TipBox>{exercise.explanation}</TipBox>
+        {exercise.explanation.trim().length > 0 ? (
+          <TipBox label="Why?">{exercise.explanation}</TipBox>
+        ) : null}
       </Card>
     </View>
   );

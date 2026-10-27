@@ -151,14 +151,16 @@ export function ExerciseScreen({ route, navigation }: Props) {
   const minWords = session?.type === 'short_answer' ? MIN_WORDS_SHORT : MIN_WORDS_PARAGRAPH;
   const canSubmit = wordCount >= minWords && !evaluating && session != null;
 
-  const checkAnswer = () => {
+  const checkAnswer = async () => {
     if (!session?.exercise || selected == null || checked) {
       return;
     }
     setChecked(true);
-    setChosenIndex(session.id, selected).catch(error => {
+    try {
+      await setChosenIndex(session.id, selected);
+    } catch (error) {
       console.warn('Failed to save answer', error);
-    });
+    }
     if (session.mistakeId) {
       recordReviewOutcome(
         session.mistakeId,
@@ -337,13 +339,10 @@ export function ExerciseScreen({ route, navigation }: Props) {
             <AppText variant="verdict" tone={correct ? 'success' : 'danger'}>
               {correct ? 'Correct!' : 'Not quite.'}
             </AppText>
-            <TipBox>{exercise.explanation}</TipBox>
-            <Button
-              title="See feedback"
-              onPress={() =>
-                navigation.replace('Feedback', { sessionId: session.id })
-              }
-            />
+            {exercise.explanation.trim().length > 0 ? (
+              <TipBox label="Why?">{exercise.explanation}</TipBox>
+            ) : null}
+            <Button title="Done" onPress={() => navigation.popToTop()} />
           </View>
         ) : (
           <Button

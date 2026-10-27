@@ -531,6 +531,7 @@ describe('buildExerciseGenSystemPrompt', () => {
     const prompt = buildExerciseGenSystemPrompt('multiple_choice', PROFILE, '');
     expect(prompt).toContain('exactly 3 options');
     expect(prompt).toContain('Exactly one option is correct');
+    expect(prompt).toContain('why each wrong option is incorrect');
     expect(prompt).toContain('Respond ONLY with JSON matching the given schema.');
   });
 });

@@ -216,7 +216,7 @@ export function buildExerciseGenSystemPrompt(
     '- Provide exactly 3 options. Exactly one option is correct.',
     '- The two distractors must be plausible but clearly wrong; target a common mistake for the focus areas and recurring mistakes.',
     '- Do not number or letter the options.',
-    `- explanation: one sentence in ${explanation.name} saying why the correct option is right.`,
+    `- explanation: one or two sentences in ${explanation.name} saying why the correct option is right and briefly why each wrong option is incorrect.`,
     '',
     'Respond ONLY with JSON matching the given schema.',
   ].join('\n');
@@ -753,7 +753,7 @@ export function buildClozeReviewSystemPrompt(
     '- One distractor must be the user\'s original incorrect wording, adapted to fit the blank.',
     '- The other distractor must be plausible but clearly wrong.',
     '- Do not number or letter the options.',
-    `- explanation: one sentence in ${explanation.name} reminding the user why the correct option is right.`,
+    `- explanation: one or two sentences in ${explanation.name} reminding the user why the correct option is right and why their original wording was wrong.`,
     '',
     'Respond ONLY with JSON matching the given schema.',
   ].join('\n');

@@ -49,7 +49,12 @@ export function SessionDetailScreen({ route, navigation }: Props) {
     );
   }
 
-  const unanswered = session.evaluation == null && session.response.trim().length === 0;
+  const answeredMcq =
+    session.type === 'multiple_choice' && session.chosenIndex != null;
+  const unanswered =
+    !answeredMcq &&
+    session.evaluation == null &&
+    session.response.trim().length === 0;
   const unevaluated = session.evaluation == null && !unanswered;
 
   const confirmDelete = () => {
